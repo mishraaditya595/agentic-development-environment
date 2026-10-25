@@ -21,6 +21,15 @@ do not rely on private workspace paths or local-only configuration. Put
 representative prompts and graders under `evals/` so behavior can be checked
 without making the skill depend on a particular runtime.
 
+## Originality and enhancement
+
+Outside repositories may inform a skill, but the package must use original
+names, wording, examples, and decision rules. Add a package-local note when
+another project materially influenced the design. Enhance imported ideas with
+repository-aware exceptions, explicit evidence states, bounded failure
+handling, and this app's authorization rules. Do not make users approve a
+design or side effect when the request is already clear and low risk.
+
 ## Validation
 
 From the repository root, run:

@@ -2,7 +2,7 @@
 
 An open-source collection of reusable agent skills and runtime integrations for AI-assisted development.
 
-The repository currently publishes **Evidence-Based Code Review**, a rigorous, repository-aware skill for reviewing changes across languages, frameworks, repositories, and toolchains.
+The repository publishes a growing catalog of original, repository-aware skills for AI-assisted software development. The first package is **Evidence-Based Code Review**, and the catalog is expanding with debugging, verification, testing, planning, review-feedback, agent coordination, and branch closeout workflows.
 
 It helps an AI reviewer establish the exact review scope, discover repository conventions, run available checks, inspect surrounding code, and report only evidence-backed findings. It is designed for pull requests, branches, commit ranges, uncommitted work, patches, and local folders.
 
@@ -51,7 +51,18 @@ Review this commit range against the repository’s own conventions. Do not chan
 
 ## Catalog
 
-The canonical package is `skills/evidence-based-code-review/`, with `SKILL.md` as its portable runtime entrypoint. Future skills belong below `skills/` rather than as new root-level directories.
+Every canonical package lives below `skills/<skill-name>/`, with `SKILL.md` as its portable runtime entrypoint. Current packages include:
+
+- `evidence-based-code-review` — evidence-backed change review.
+- `root-cause-investigation` — systematic debugging with evidence checkpoints.
+- `proof-before-done` — claim-to-evidence completion verification.
+- `behavior-first-engineering` — repository-aware test-first implementation.
+- `intent-to-implementation` — proportional discovery and design selection.
+- `review-feedback-triage` — technically grounded review feedback handling.
+- `coordinated-agent-delivery` — bounded multi-agent task coordination.
+- `branch-closeout` — safe, evidence-based implementation closeout.
+
+These are original packages informed by useful industry workflows; they are not direct copies of another repository's skills.
 
 ## Repository layout
 

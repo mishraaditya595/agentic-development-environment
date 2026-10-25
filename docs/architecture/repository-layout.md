@@ -11,6 +11,13 @@ skills/
     references/
     evals/
     README.md
+  root-cause-investigation/
+  proof-before-done/
+  behavior-first-engineering/
+  intent-to-implementation/
+  review-feedback-triage/
+  coordinated-agent-delivery/
+  branch-closeout/
 plugins/
   claude-code/
     <plugin-name>/
