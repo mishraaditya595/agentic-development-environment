@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: dependency-update
+expected_outcome: |
+  The review inspects the manifest and lockfile together, checks repository-supported compatibility and reproducibility signals, reports supply-chain or licensing concerns only when evidenced, distinguishes missing verification from defects, and does not install or modify dependencies.

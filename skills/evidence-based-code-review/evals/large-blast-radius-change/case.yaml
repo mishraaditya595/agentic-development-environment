@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: large-blast-radius-change
+expected_outcome: |
+  The review establishes a reproducible scope manifest, separates spec conformance from standards and risk, activates security/API/database/frontend/supply-chain/compatibility checks, accounts for reviewed and skipped files, uses a bounded independent pass when available, and distinguishes confirmed findings from verification gaps before giving a verdict.

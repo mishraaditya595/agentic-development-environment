@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: api-auth-change
+expected_outcome: |
+  The review identifies that client-only role checks are not an authoritative authorization boundary, checks for sensitive account data exposure, reports relevant test gaps, runs or reports available repository checks, and gives a cautious merge verdict without editing files.

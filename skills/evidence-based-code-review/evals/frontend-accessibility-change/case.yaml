@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: frontend-accessibility-change
+expected_outcome: |
+  The review applies UI and accessibility checks conditionally, looks for existing design-system or component conventions, checks validation and error states, considers localization and responsive behavior, and avoids inventing framework-specific findings without repository evidence.
