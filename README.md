@@ -1,14 +1,16 @@
-# Evidence-Based Code Review
+# Agentic Development Environment
 
-An open-source Agent Skill for rigorous, repository-aware code review across languages, frameworks, repositories, and toolchains.
+An open-source collection of reusable agent skills and runtime integrations for AI-assisted development.
 
-> Establish the scope. Gather the evidence. Report only what the change supports.
+The repository currently publishes **Evidence-Based Code Review**, a rigorous, repository-aware skill for reviewing changes across languages, frameworks, repositories, and toolchains.
 
 It helps an AI reviewer establish the exact review scope, discover repository conventions, run available checks, inspect surrounding code, and report only evidence-backed findings. It is designed for pull requests, branches, commit ranges, uncommitted work, patches, and local folders.
 
-## Why use it
+## What is included
 
-Evidence-Based Code Review helps an AI reviewer:
+### Evidence-Based Code Review
+
+The first published skill helps an AI reviewer:
 
 - **Establish the exact scope** — review pull requests, branches, commit ranges, patches, uncommitted changes, or local folders.
 - **Follow the repository** — discover its instructions, conventions, checks, tests, and existing abstractions instead of assuming a stack.
