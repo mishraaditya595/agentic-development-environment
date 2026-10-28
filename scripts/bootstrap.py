@@ -111,91 +111,93 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
     return out, notes
 
 
-def existing_config(target: Path, agents: list[str], skills: list[str], available: list[str]) -> tuple[list[str], list[str], bytes | None]:
-    """Return cumulative selections only for a byte-identical ADE-managed config."""
+def existing_config(target, agents, skills, available):
     path = target / CONFIG
     if path.is_symlink():
-        raise ValueError(".agentic-dev/config.json is a symlink")
+        raise ValueError("config.json is a symlink")
     if not path.exists():
-        return agents, skills, None
-    if not path.is_file():
-        raise ValueError(".agentic-dev/config.json is not a regular file")
+        return agents, skills, None, {}
     raw = path.read_bytes()
     try:
         info = json.loads(raw)
-        old_agents = info["agents"]
-        old_skills = info["skills"]
+        old_agents, old_skills = info["agents"], info["skills"]
         if (not isinstance(old_agents, list) or not isinstance(old_skills, list)
                 or not all(isinstance(x, str) for x in old_agents + old_skills)
                 or not old_agents or not old_skills
                 or old_agents != sorted(set(old_agents)) or old_skills != sorted(set(old_skills))
                 or not set(old_agents) <= set(AGENT_DESTINATIONS)
-                or not set(old_skills) <= set(available)
-                or raw != config_bytes(old_agents, old_skills)):
-            raise ValueError("not a canonical ADE selection inventory")
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        raise ValueError(".agentic-dev/config.json has been modified or is invalid") from exc
-    # Re-runs only add selections; removing installed content needs a reviewed manual change.
-    return sorted(set(agents) | set(old_agents)), sorted(set(skills) | set(old_skills)), raw
+                or not set(old_skills) <= set(available)):
+            raise ValueError("invalid inventory selections")
+        version = info.get("schema_version")
+        if version == 1 and raw == config_bytes(old_agents, old_skills):
+            previous = {}
+            for rel, sha in LEGACY.items():
+                if (any(rel.startswith(".agentic-dev/" + kind + "/") for kind in SHARED)
+                        or any(rel.startswith(str(AGENT_DESTINATIONS[agent]) + "/" + skill + "/")
+                               for agent in old_agents for skill in old_skills)):
+                    previous[rel] = ("git", sha)
+            return sorted(set(agents + old_agents)), sorted(set(skills + old_skills)), raw, previous
+        manifest = info.get("files")
+        if (version != 2 or not isinstance(manifest, dict) or
+                any(not isinstance(k, str) or not isinstance(v, str)
+                    or not re.fullmatch(r"[a-f0-9]{64}", v)
+                    or k.startswith("/") or ".." in Path(k).parts for k, v in manifest.items())
+                or raw != config_bytes(old_agents, old_skills, manifest)):
+            raise ValueError("invalid versioned inventory")
+        return sorted(set(agents + old_agents)), sorted(set(skills + old_skills)), raw, {
+            k: ("sha256", v) for k,v in manifest.items()}
+    except (TypeError, KeyError, ValueError) as exc:
+        raise ValueError("config.json has been modified or is invalid") from exc
 
 
-def preflight(target: Path, desired: dict[Path, bytes], agents: list[str], old_config: bytes | None) -> tuple[list[Path], list[Path], list[Path], bool, bool]:
-    create, identical, conflicts = [], [], []
-    update_config = False
-    update_agents = False
-    # Protected existing instruction files must not be symlinks, including dangling links.
-    for name in ("AGENTS.md", "CLAUDE.md"):
-        if name == "CLAUDE.md" and "claude" not in agents:
-            continue
-        if (target / name).is_symlink():
-            conflicts.append(target / name)
-    if old_config is not None and desired[target / CONFIG] != old_config:
-        previous = json.loads(old_config)
-        old_assets, _ = gather(target, previous["agents"], previous["skills"])
-        for path, content in old_assets.items():
-            if path == target / CONFIG or path in (target / "AGENTS.md", target / "CLAUDE.md"):
-                continue  # user-owned instructions are deliberately exempt
-            if path.is_symlink() or not path.is_file() or path.read_bytes() != content:
-                conflicts.append(path)
-    for path, content in sorted(desired.items()):
-        current = path.parent
-        bad_parent = False
-        while current != target:
-            if current.is_symlink() or (current.exists() and not current.is_dir()):
-                bad_parent = True
-                break
-            current = current.parent
-        if bad_parent or path.is_symlink():
+def preflight(target, desired, agents, old_config, previous, no_routing=False):
+    creates, same, conflicts, replacements, snapshots = [], [], [], [], {}
+    for rel, (algo, signature) in previous.items():
+        path = target / rel
+        if path.is_symlink() or not path.is_file():
             conflicts.append(path)
-        elif path.exists():
-            if not path.is_file():
-                conflicts.append(path)
-            elif path == target / CONFIG and old_config is not None:
-                # Only the canonical inventory may be updated. New assets are
-                # preflighted independently; the config is replaced last.
-                if path.read_bytes() != old_config:
-                    conflicts.append(path)
-                elif content == old_config:
-                    identical.append(path)
-                else:
-                    update_config = True
-            elif path.read_bytes() == content:
-                identical.append(path)
-            elif path == target / "AGENTS.md":
-                # This is strictly a canonical block addition; all existing bytes survive.
+            continue
+        data = path.read_bytes()
+        valid = (git_blob(data) == signature if algo == "git" else content_hash(data) == signature)
+        if not valid:
+            conflicts.append(path)
+    for path, content in sorted(desired.items()):
+        cur = path.parent
+        invalid = path.is_symlink()
+        while cur != target and not invalid:
+            invalid = cur.is_symlink() or (cur.exists() and not cur.is_dir())
+            cur = cur.parent
+        if invalid:
+            conflicts.append(path)
+            continue
+        if not path.exists():
+            creates.append(path)
+            continue
+        if not path.is_file():
+            conflicts.append(path)
+            continue
+        old = path.read_bytes()
+        snapshots[path] = old
+        if old == content:
+            same.append(path)
+        elif path == target / CONFIG and old_config == old:
+            replacements.append(path)
+        elif path == target / "AGENTS.md":
+            if no_routing:
+                same.append(path)
+            else:
                 try:
-                    if managed_instructions(path.read_bytes()) == content:
-                        update_agents = True
+                    if managed_instructions(old) == content:
+                        replacements.append(path)
                     else:
                         conflicts.append(path)
                 except ValueError:
                     conflicts.append(path)
-            else:
-                conflicts.append(path)
+        elif str(path.relative_to(target)) in previous:
+            replacements.append(path)
         else:
-            create.append(path)
-    return create, identical, sorted(set(conflicts)), update_config, update_agents
-
+            conflicts.append(path)
+    return creates, same, sorted(set(conflicts)), replacements, snapshots
 
 def _parent_fd(root_fd: int, target: Path, path: Path, created_dirs: list[Path], make: bool) -> int:
     """Walk via directory descriptors so swapped parent symlinks cannot redirect writes."""
