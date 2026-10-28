@@ -219,7 +219,7 @@ class BootstrapTests(unittest.TestCase):
             t = Path(p)
             self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
             path = t / "AGENTS.md"
-            
+            path.write_text(path.read_text().replace("ADE ROUTING END", "ADE ROUTING END") + "")
             # Change only the managed content, leaving the markers intact.
             path.write_text(path.read_text().replace("primary skill", "different skill"))
             old = path.read_bytes()
@@ -245,7 +245,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
             instructions = t / "AGENTS.md"
             # Simulate an older local project that has instructions but no ADE section.
-            instructions.write_text("ORIGINAL PROJECT RULE\n")
+            instructions.write_text("ORIGINAL PROJECT RULE\\n")
             before = instructions.read_bytes()
             old_config = (t / ".agentic-dev/config.json").read_bytes()
             original_replace = bootstrap.os.replace
@@ -264,61 +264,98 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual((t / ".agentic-dev/config.json").read_bytes(), old_config)
             self.assertFalse((t / ".claude").exists())
 
-    def test_preflight_instruction_edit_race_does_not_lose_changes(self):
+    def test_installed_harness_cli_executes_configured_checks(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "standard").returncode, 0)
+            entry = t / ".agentic-dev/bin/ade-harness.py"
+            self.assertTrue(entry.is_file())
+            checks = t / ".agentic-dev/harness.json"
+            checks.write_text(json.dumps({"schema_version":1,"checks":{
+                "fast":{"argv":[sys.executable,"-c","print('verified')"]}
+            }}))
+            completed = subprocess.run([sys.executable,str(entry),"--target",str(t),
+                "check","--check","fast"], capture_output=True,text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(json.loads(completed.stdout)["verdict"], "pass")
+            self.assertEqual(run(t, "--preset", "standard").returncode, 0)
+            self.assertEqual(json.loads(checks.read_text())["checks"]["fast"]["argv"][0], sys.executable)
+
+    def test_installed_harness_cli_executes_operations(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            result = run(t, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            runner = t / ".agentic-dev/bin/ade-harness.py"
+            ignore = t / ".agentic-dev/.gitignore"
+            self.assertEqual(ignore.read_text(), "state/\nevidence/\n")
+            def cli(*args):
+                return subprocess.run([sys.executable, str(runner), "--target", str(t), *args],
+                                      capture_output=True, text=True)
+            start = cli("session", "start", "--title", "Offline testing")
+            self.assertEqual(start.returncode, 0, start.stderr)
+            self.assertEqual(json.loads(start.stdout)["active"]["title"], "Offline testing")
+            checkpoint = cli("session", "checkpoint", "--step", "Tests")
+            self.assertEqual(checkpoint.returncode, 0, checkpoint.stderr)
+            self.assertEqual(cli("session", "status").returncode, 0)
+            self.assertEqual(cli("session", "close", "--verdict", "partial").returncode, 0)
+            self.assertEqual(cli("workspace").returncode, 2)
+            self.assertEqual(cli("sensor-proof").returncode, 1)
+            backend = t / "backend"
+            (backend / ".agentic-dev").mkdir(parents=True)
+            (backend / ".agentic-dev/harness.json").write_text(json.dumps({
+                "schema_version": 1, "checks": {
+                    "fast": {"argv": [sys.executable, "-c", "print('ok')"]}
+                }
+            }))
+            (t / ".agentic-dev/workspace.json").write_text(json.dumps({
+                "schema_version": 1,
+                "repositories": [{"name": "backend", "path": "backend"}]
+            }))
+            self.assertEqual(cli("workspace", "--check", "fast").returncode, 0)
+            (t / "good.txt").write_text("GOOD")
+            (t / "bad.txt").write_text("BAD")
+            (t / ".agentic-dev/sensors.json").write_text(json.dumps({
+                "schema_version": 1, "sensors": [{
+                    "id": "fixture", "argv": [sys.executable, "-c",
+                        "import pathlib,sys;sys.exit(1 if 'BAD' in pathlib.Path(sys.argv[1]).read_text() else 0)",
+                        "{path}"],
+                    "clean": "good.txt", "violation": "bad.txt"
+                }]
+            }))
+            self.assertEqual(cli("sensor-proof", "--sensor", "fixture").returncode, 0)
+
+
+    def test_preexisting_ignore_is_preserved(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            folder = t / ".agentic-dev"
+            folder.mkdir()
+            ignore = folder / ".gitignore"
+            ignore.write_text("local-only/\n")
+            result = run(t, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(ignore.read_text(), "local-only/\n")
+
+    def test_symlinked_sensor_config_aborts_install(self):
         with tempfile.TemporaryDirectory() as p:
             target = Path(p)
-            doc = target / "AGENTS.md"
-            doc.write_text("Original instructions\n")
-            original = bootstrap._write_new
-            changed = [False]
-
-            def edit_during_install(*args, **kwargs):
-                if not changed[0]:
-                    changed[0] = True
-                    doc.write_text("Original instructions\nNew user edit\n")
-                return original(*args, **kwargs)
-
-            with mock.patch.object(bootstrap, "_write_new", side_effect=edit_during_install), \
-                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                result = bootstrap.main(["--target", str(target), "--preset", "minimal"])
-            self.assertEqual(result, 1)
-            self.assertEqual(doc.read_text(), "Original instructions\nNew user edit\n")
+            folder = target / ".agentic-dev"
+            folder.mkdir()
+            (folder / "sensors.json").symlink_to(target / "missing.json")
+            result = run(target, "--preset", "minimal")
+            self.assertEqual(result.returncode, 2)
             self.assertFalse((target / ".agents").exists())
 
-    def test_agents_mode_and_hard_links_are_preserved_or_rejected(self):
+    def test_sensors_config_is_user_owned_after_install(self):
         with tempfile.TemporaryDirectory() as p:
-            target = Path(p)
-            doc = target / "AGENTS.md"
-            doc.write_text("Original\n")
-            os.chmod(doc, 0o644)
-            result = run(target, "--preset", "minimal")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(stat.S_IMODE(doc.stat().st_mode), 0o644)
-        with tempfile.TemporaryDirectory() as p:
-            target = Path(p)
-            doc = target / "AGENTS.md"
-            doc.write_text("Original\n")
-            os.link(doc, target / "linked.md")
-            result = run(target, "--preset", "minimal")
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(doc.read_text(), (target / "linked.md").read_text())
-
-    def test_crlf_routing_and_opt_out(self):
-        with tempfile.TemporaryDirectory() as p:
-            target = Path(p)
-            (target / "AGENTS.md").write_bytes(b"Original\r\nInstructions\r\n")
-            result = run(target, "--preset", "minimal")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            doc = (target / "AGENTS.md").read_bytes()
-            self.assertNotIn(b"\n", doc.replace(b"\r\n", b""))
-            self.assertEqual(run(target, "--preset", "minimal").returncode, 0)
-        with tempfile.TemporaryDirectory() as p:
-            target = Path(p)
-            path = target / "AGENTS.md"
-            path.write_text("Own instructions\n")
-            result = run(target, "--preset", "minimal", "--no-agents-routing")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(path.read_text(), "Own instructions\n")
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            sensor = t / ".agentic-dev/sensors.json"
+            sensor.write_text('{"schema_version":1,"sensors":[{"id":"example"}]}')
+            changed = run(t, "--agents", "codex,claude", "--preset", "minimal")
+            self.assertEqual(changed.returncode, 0, changed.stderr)
+            self.assertIn('"example"', sensor.read_text())
 
     def test_upgrade_from_pr1_without_deleting_old_assets(self):
         old_revision = "a769d629eeeeb36187dd1c989c303296541cc68f"
@@ -344,6 +381,62 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(config["schema_version"], 2)
             self.assertTrue(config["files"])
             self.assertEqual(run(project, "--agents", "codex,claude", "--preset", "minimal").returncode, 0)
+
+    def test_preflight_instruction_edit_race_does_not_lose_changes(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            doc = target / "AGENTS.md"
+            doc.write_text("Original instructions\n")
+            original = bootstrap._write_new
+            changed = [False]
+
+            def edit_during_install(*args, **kwargs):
+                if not changed[0]:
+                    changed[0] = True
+                    doc.write_text("Original instructions\nNew user edit\n")
+                return original(*args, **kwargs)
+
+            with mock.patch.object(bootstrap, "_write_new", side_effect=edit_during_install), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                result = bootstrap.main(["--target", str(target), "--preset", "minimal"])
+            self.assertEqual(result, 1)
+            self.assertEqual(doc.read_text(), "Original instructions\nNew user edit\n")
+            self.assertFalse((target / ".agents").exists())
+
+    def test_crlf_routing_and_opt_out(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            (target / "AGENTS.md").write_bytes(b"Original\r\nInstructions\r\n")
+            result = run(target, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            doc = (target / "AGENTS.md").read_bytes()
+            self.assertNotIn(b"\n", doc.replace(b"\r\n", b""))
+            self.assertEqual(run(target, "--preset", "minimal").returncode, 0)
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            path = target / "AGENTS.md"
+            path.write_text("Own instructions\n")
+            result = run(target, "--preset", "minimal", "--no-agents-routing")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_text(), "Own instructions\n")
+
+    def test_agents_mode_and_hard_links_are_preserved_or_rejected(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            doc = target / "AGENTS.md"
+            doc.write_text("Original\n")
+            os.chmod(doc, 0o644)
+            result = run(target, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(stat.S_IMODE(doc.stat().st_mode), 0o644)
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            doc = target / "AGENTS.md"
+            doc.write_text("Original\n")
+            os.link(doc, target / "linked.md")
+            result = run(target, "--preset", "minimal")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(doc.read_text(), (target / "linked.md").read_text())
 
     def test_deleted_user_owned_check_config_can_be_recreated(self):
         with tempfile.TemporaryDirectory() as p:

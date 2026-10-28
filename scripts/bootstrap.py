@@ -78,6 +78,8 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
         for source in sorted((ROOT / category).rglob("*")):
             if source.is_file():
                 out[target / ".agentic-dev" / category / source.relative_to(ROOT / category)] = source.read_bytes()
+    if not (target / ".agentic-dev/.gitignore").exists() and not (target / ".agentic-dev/.gitignore").is_symlink():
+        out[target / ".agentic-dev/.gitignore"] = b"state/\nevidence/\n"
     # A stable catalog survives additive skill installs without unsafe file rewrites.
     # Agents must only invoke entries whose primary skill is actually installed.
     out[target / ".agentic-dev/skill-map.json"] = (ROOT / "routing/skill-map.json").read_bytes()
@@ -88,6 +90,11 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
     out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/__init__.py"] = (ROOT / "harness/__init__.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/policy.py"] = (ROOT / "harness/policy.py").read_bytes()
+    for module in ("session.py", "workspace.py", "sensors.py"):
+        out[target / ".agentic-dev/bin/harness" / module] = (ROOT / "harness" / module).read_bytes()
+    if not (target / ".agentic-dev/sensors.json").exists():
+        out[target / ".agentic-dev/sensors.json"] = (json.dumps(
+            {"schema_version": 1, "sensors": []}, indent=2) + "\n").encode("utf-8")
     if not (target / ".agentic-dev/invariants.json").exists():
         out[target / ".agentic-dev/invariants.json"] = (json.dumps({"schema_version":1, "rules":[]}, indent=2) + "\n").encode("utf-8")
     for destination in sorted({AGENT_DESTINATIONS[agent] for agent in agents}):
@@ -350,6 +357,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         agents, skills, old_config, previous = existing_config(target, agents, skills, available)
         desired, notes = gather(target, agents, skills)
+        if (target / ".agentic-dev/sensors.json").is_symlink():
+            raise ValueError("Sensor configuration must not be a symlink")
+        if (target / ".agentic-dev/.gitignore").is_symlink():
+            raise ValueError("Local ignore configuration must not be a symlink")
         if args.no_agents_routing and not (target / "AGENTS.md").exists():
             from harness.routing import START, END
             body = desired[target / "AGENTS.md"].decode("utf-8")
@@ -359,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
                 desired[target / "AGENTS.md"] = body.encode("utf-8")
         if args.no_agents_routing and (target / "AGENTS.md").is_file():
             desired[target / "AGENTS.md"] = (target / "AGENTS.md").read_bytes()
-        for relative in (".agentic-dev/harness.json", ".agentic-dev/invariants.json"):
+        for relative in (".agentic-dev/harness.json", ".agentic-dev/invariants.json", ".agentic-dev/sensors.json", ".agentic-dev/.gitignore"):
             path = target / relative
             if path.is_file() and not path.is_symlink():
                 desired[path] = path.read_bytes()
@@ -367,7 +378,9 @@ def main(argv: list[str] | None = None) -> int:
                     for path, data in desired.items()
                     if path != target / CONFIG and path.name not in ("AGENTS.md", "CLAUDE.md")
                     and path not in (target / ".agentic-dev/harness.json",
-                                     target / ".agentic-dev/invariants.json")}
+                                     target / ".agentic-dev/invariants.json",
+                                     target / ".agentic-dev/sensors.json",
+                                     target / ".agentic-dev/.gitignore")}
         desired[target / CONFIG] = config_bytes(agents, skills, manifest)
         creates, same, conflicts, replacements, snapshots = preflight(
             target, desired, agents, old_config, previous, args.no_agents_routing)
