@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import fcntl
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -18,6 +20,50 @@ def _text(value, label):
     if not isinstance(value, str) or not value.strip() or len(value) > MAX_FIELD or "\x00" in value:
         raise ValueError(f"{label} must be a nonempty text value of at most {MAX_FIELD} characters")
     return value.strip()
+
+
+@contextmanager
+def journal(root, exclusive=False):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd_root = os.open(root, flags)
+    parent = directory = handle = None
+    try:
+        parent = os.open(".agentic-dev", flags, dir_fd=fd_root)
+        try:
+            os.mkdir("state", 0o700, dir_fd=parent)
+        except FileExistsError:
+            pass
+        directory = os.open("state", flags, dir_fd=parent)
+        handle = os.open("sessions.jsonl", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                         0o600, dir_fd=directory)
+        fcntl.flock(handle, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        yield handle
+    finally:
+        if handle is not None:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+            os.close(handle)
+        if directory is not None:
+            os.close(directory)
+        if parent is not None:
+            os.close(parent)
+        os.close(fd_root)
+
+
+def read_locked(handle):
+    os.lseek(handle, 0, os.SEEK_SET)
+    with os.fdopen(os.dup(handle), "rb") as stream:
+        content = stream.read()
+    pos = content.rfind(b"\\n") + 1
+    records = []
+    for num, line in enumerate(content[:pos].splitlines(), 1):
+        try:
+            item = json.loads(line)
+            if not isinstance(item, dict) or item.get("kind") not in ("start", "checkpoint", "close"):
+                raise ValueError("invalid event")
+            records.append(item)
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ValueError(f"Session journal line {num} is invalid: {exc}") from exc
+    return records, pos, len(content)
 
 
 def events(root: Path):
