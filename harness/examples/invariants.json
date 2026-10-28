@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "no-production-test-data",
+      "severity": "critical",
+      "description": "Tests must not depend on production customer data",
+      "enforced_by": "not-enforced"
+    },
+    {
+      "id": "formatting",
+      "severity": "important",
+      "description": "All changes pass the project's actual lint command",
+      "enforced_by": "check:fast"
+    }
+  ]
+}
