@@ -357,6 +357,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         agents, skills, old_config, previous = existing_config(target, agents, skills, available)
         desired, notes = gather(target, agents, skills)
+        if (target / ".agentic-dev/sensors.json").is_symlink():
+            raise ValueError("Sensor configuration must not be a symlink")
+        if (target / ".agentic-dev/.gitignore").is_symlink():
+            raise ValueError("Local ignore configuration must not be a symlink")
         if args.no_agents_routing and not (target / "AGENTS.md").exists():
             from harness.routing import START, END
             body = desired[target / "AGENTS.md"].decode("utf-8")
