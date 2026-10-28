@@ -299,6 +299,30 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(cli("session", "close", "--verdict", "partial").returncode, 0)
             self.assertEqual(cli("workspace").returncode, 2)
             self.assertEqual(cli("sensor-proof").returncode, 1)
+            backend = t / "backend"
+            (backend / ".agentic-dev").mkdir(parents=True)
+            (backend / ".agentic-dev/harness.json").write_text(json.dumps({
+                "schema_version": 1, "checks": {
+                    "fast": {"argv": [sys.executable, "-c", "print('ok')"]}
+                }
+            }))
+            (t / ".agentic-dev/workspace.json").write_text(json.dumps({
+                "schema_version": 1,
+                "repositories": [{"name": "backend", "path": "backend"}]
+            }))
+            self.assertEqual(cli("workspace", "--check", "fast").returncode, 0)
+            (t / "good.txt").write_text("GOOD")
+            (t / "bad.txt").write_text("BAD")
+            (t / ".agentic-dev/sensors.json").write_text(json.dumps({
+                "schema_version": 1, "sensors": [{
+                    "id": "fixture", "argv": [sys.executable, "-c",
+                        "import pathlib,sys;sys.exit(1 if 'BAD' in pathlib.Path(sys.argv[1]).read_text() else 0)",
+                        "{path}"],
+                    "clean": "good.txt", "violation": "bad.txt"
+                }]
+            }))
+            self.assertEqual(cli("sensor-proof", "--sensor", "fixture").returncode, 0)
+
 
     def test_preexisting_ignore_is_preserved(self):
         with tempfile.TemporaryDirectory() as p:
