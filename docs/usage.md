@@ -16,7 +16,7 @@ After installing, open a new coding-agent session and ask naturally: "Review my 
 
 ## Option B: Full project-local guidance from ADE checkout
 
-There is **no published npx agentic-dev CLI** yet. The working bundle installer is a Python 3.9+ script requiring no third-party packages, external commands or network access while running.
+There is **no published npx agentic-dev CLI** yet. The working bundle installer is a Python 3.9+ script requiring no third-party packages, external commands or network access while running. Secure filesystem writes currently require POSIX `dir_fd`, `O_DIRECTORY` and `O_NOFOLLOW` support (Linux/macOS). Unsupported runtimes fail closed.
 
 First clone or download the reviewed ADE release into a separate directory:
 
@@ -49,13 +49,24 @@ Install by re-running without --dry-run. Prefer a pinned release or commit for r
 | .agentic-dev/workflows/ | Shared stage ordering and failure recovery |
 | .agentic-dev/rules/ | Reference engineering policies |
 | .agentic-dev/templates/ | Plan, PR, review and handoff document structures |
-| .agentic-dev/config.json | Local selection inventory, **not** a version-lock file |
+| .agentic-dev/config.json | Canonical additive selection inventory, **not** a version-lock file |
 | AGENTS.md | Project instructions if no existing file |
 | CLAUDE.md | Claude instructions if no existing file; imports AGENTS.md |
 
-**Existing AGENTS.md and CLAUDE.md are preserved, never overwritten.** If either already exists, manually link appropriate .agentic-dev guidance into your existing instructions. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical; conflicts, edits or symlinked destinations abort before any writes.
+**Existing AGENTS.md and CLAUDE.md are preserved, never overwritten.** If either already exists, manually link appropriate .agentic-dev guidance into your existing instructions. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical. Non-directory parent paths, modified managed files, symlinks (including dangling instructions), and invalid inventory files cause a preflight conflict before writing. Exclusive file creation with directory descriptors closes destination and parent symlink races. Write failures trigger best-effort rollback of files and empty directories created by the current run; original files are not deleted.
 
-The installer is copy-only and idempotent with identical settings. It does not currently implement automatic updates, uninstallation, a published CLI, a cryptographic lockfile, Windows-specific wrapper scripts, or changes to remote protections/CI. An update should be a manual reviewed comparison with the pinned checkout.
+### Adding agents and skills after installation
+
+Run the same bootstrap script again using the **same pinned ADE checkout**:
+
+    python3 scripts/bootstrap.py --target /path/to/my-project --agents codex --preset minimal
+    python3 scripts/bootstrap.py --target /path/to/my-project --agents codex,claude --preset minimal
+    python3 scripts/bootstrap.py --target /path/to/my-project --agents codex,claude --skills test-engineer --dry-run
+    python3 scripts/bootstrap.py --target /path/to/my-project --agents codex,claude --skills test-engineer
+
+The new selections are **additive**: previously installed agents and skills remain selected even when omitted on a later invocation. Only an unmodified, canonical `.agentic-dev/config.json` and an otherwise untouched set of installed managed files may be expanded. New files are created exclusively; the inventory update is atomic and happens last. Project instruction files remain user-owned. Edited, missing or outdated managed assets cause a conflict—review differences instead of deleting `config.json` to bypass protection. Removing selections and upgrading managed *content* remain manual, reviewed operations.
+
+The installer is copy-only and idempotent. It does not implement automatic package updates, uninstallation, a published CLI, a cryptographic lockfile or Windows-specific secure writes. Exit codes: 0 success, 2 preflight conflict, 1 installation/rollback failure. Incomplete rollback is reported explicitly. Do not run multiple installers against the same target concurrently; other processes can still race the inventory update.
 
 For OpenCode, use the .agents/skills compatible discovery path and verify with your installed runtime. Unknown agents require a tested adapter; Markdown placed in arbitrary directories is not automatically loaded.
 

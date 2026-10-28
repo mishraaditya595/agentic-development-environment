@@ -11,14 +11,18 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       - name: Validate skill package links and metadata
         run: sh scripts/validate-skills.sh
       - name: Validate shared layout
         run: python3 scripts/validate-ade.py
-      - name: Test bootstrap safety
+      - name: Test bootstrap safety and validation
         run: python3 -m unittest discover -s tests -v

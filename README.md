@@ -18,14 +18,14 @@ Every package is self-contained. It does not require installing ADE as a whole. 
 
 ## Get started: install full ADE guidance
 
-The project-local installer is **implemented in Python**; a proposed npx agentic-dev CLI is **not published or available**.
+The project-local installer is **implemented in Python 3.9+** for POSIX filesystem runtimes (Linux/macOS); a proposed npx agentic-dev CLI is **not published or available**.
 
 In an ADE checkout:
 
     python3 scripts/bootstrap.py --target /path/to/your-project --agents codex,claude,opencode --preset standard --dry-run
     python3 scripts/bootstrap.py --target /path/to/your-project --agents codex,claude,opencode --preset standard
 
-This installs selected skills, workflow/rule/template references and agent instructions where absent. No scripts are executed in the target repo; no network is required during installation. Conflicting files are refused without changing anything. Existing AGENTS.md / CLAUDE.md are preserved. See [detailed installation and usage](docs/usage.md).
+This installs selected skills, workflow/rule/template references and agent instructions where absent. No scripts are executed in the target repo; no network is required during installation. Conflicting files are refused during preflight without changing anything. Write failures trigger rollback of newly created files and a nonzero exit. Existing AGENTS.md / CLAUDE.md are preserved, while symlinked instructions are refused. Re-running with additional `--agents` or `--skills` safely expands untouched installations; the config inventory is updated last. See [detailed installation and usage](docs/usage.md).
 
 ## What developers actually do
 
