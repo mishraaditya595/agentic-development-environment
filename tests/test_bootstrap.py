@@ -52,9 +52,11 @@ class BootstrapTests(unittest.TestCase):
             (t / "CLAUDE.md").write_text("Our project instructions\n")
             result = run(t, "--agents", "claude")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual((t / "AGENTS.md").read_text(), "DO NOT MERGE\n")
+            self.assertTrue((t / "AGENTS.md").read_text().startswith("DO NOT MERGE\n"))
+            self.assertIn("ADE ROUTING START", (t / "AGENTS.md").read_text())
             self.assertEqual((t / "CLAUDE.md").read_text(), "Our project instructions\n")
-            self.assertIn("PRESERVE", result.stdout)
+            self.assertIn("MANAGED AGENTS.md", result.stdout)
+            self.assertIn("PRESERVE CLAUDE.md", result.stdout)
 
     def test_conflicts_abort_all_writes(self):
         with tempfile.TemporaryDirectory() as p:
@@ -209,6 +211,31 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(outside.read_text(), "untouched")
             self.assertTrue(injected_path[0].is_symlink())  # attacker-owned link is preserved
             self.assertFalse((t / ".agents").exists())
+
+    def test_modified_routing_block_fails_before_writes(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            path = t / "AGENTS.md"
+            path.write_text(path.read_text().replace("ADE ROUTING END", "ADE ROUTING END") + "")
+            # Change only the managed content, leaving the markers intact.
+            path.write_text(path.read_text().replace("primary skill", "different skill"))
+            old = path.read_bytes()
+            result = run(t, "--agents", "claude", "--preset", "minimal")
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("CONFLICT", result.stderr)
+            self.assertEqual(path.read_bytes(), old)
+            self.assertFalse((t / ".claude").exists())
+
+    def test_existing_agents_routing_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            (t / "AGENTS.md").write_text("PROJECT RULE\n")
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            updated = (t / "AGENTS.md").read_text()
+            self.assertEqual(updated.count("ADE ROUTING START"), 1)
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            self.assertEqual((t / "AGENTS.md").read_text(), updated)
 
     def test_unknown_skill_is_invalid(self):
         with tempfile.TemporaryDirectory() as p:

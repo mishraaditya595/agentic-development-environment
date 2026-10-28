@@ -19,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT = ROOT / "skills"
+sys.path.insert(0, str(ROOT))
+from harness.routing import managed_instructions
 SHARED = ("workflows", "rules", "templates")
 PRESETS = {
     "minimal": ("plan-creator", "plan-implementer", "evidence-based-code-review"),
@@ -86,8 +88,11 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
         if name == "CLAUDE.md" and "claude" not in agents:
             continue
         path = target / name
-        if path.exists() or path.is_symlink():
-            notes.append(f"PRESERVE {name}: existing instructions unchanged; manually reference .agentic-dev/ resources if desired")
+        if name == "AGENTS.md" and path.is_file() and not path.is_symlink():
+            out[path] = managed_instructions(path.read_bytes())
+            notes.append("MANAGED AGENTS.md: preserve existing content; add ADE routing block if absent")
+        elif path.exists() or path.is_symlink():
+            notes.append(f"PRESERVE {name}: existing instructions unchanged")
         else:
             out[path] = (ROOT / "templates" / name).read_bytes()
     out[target / CONFIG] = config_bytes(agents, skills)
@@ -122,9 +127,10 @@ def existing_config(target: Path, agents: list[str], skills: list[str], availabl
     return sorted(set(agents) | set(old_agents)), sorted(set(skills) | set(old_skills)), raw
 
 
-def preflight(target: Path, desired: dict[Path, bytes], agents: list[str], old_config: bytes | None) -> tuple[list[Path], list[Path], list[Path], bool]:
+def preflight(target: Path, desired: dict[Path, bytes], agents: list[str], old_config: bytes | None) -> tuple[list[Path], list[Path], list[Path], bool, bool]:
     create, identical, conflicts = [], [], []
     update_config = False
+    update_agents = False
     # Protected existing instruction files must not be symlinks, including dangling links.
     for name in ("AGENTS.md", "CLAUDE.md"):
         if name == "CLAUDE.md" and "claude" not in agents:
@@ -163,11 +169,20 @@ def preflight(target: Path, desired: dict[Path, bytes], agents: list[str], old_c
                     update_config = True
             elif path.read_bytes() == content:
                 identical.append(path)
+            elif path == target / "AGENTS.md":
+                # This is strictly a canonical block addition; all existing bytes survive.
+                try:
+                    if managed_instructions(path.read_bytes()) == content:
+                        update_agents = True
+                    else:
+                        conflicts.append(path)
+                except ValueError:
+                    conflicts.append(path)
             else:
                 conflicts.append(path)
         else:
             create.append(path)
-    return create, identical, sorted(set(conflicts)), update_config
+    return create, identical, sorted(set(conflicts)), update_config, update_agents
 
 
 def _parent_fd(root_fd: int, target: Path, path: Path, created_dirs: list[Path], make: bool) -> int:
@@ -211,30 +226,42 @@ def _write_new(root_fd: int, target: Path, path: Path, content: bytes,
         os.close(parent_fd)
 
 
-def _update_inventory(root_fd: int, target: Path, content: bytes,
+def _replace_existing(root_fd: int, target: Path, path: Path, content: bytes,
                       old: bytes, created_files: list[tuple[Path, int, int]],
-                      created_dirs: list[Path]) -> None:
-    """Atomic replace after verifying the existing canonical inventory again."""
-    path = target / CONFIG
+                      created_dirs: list[Path],
+                      updated: list[tuple[Path, bytes, bytes]] | None = None) -> None:
+    """Atomically replace a preflighted regular file after re-reading its bytes.
+
+    Record successful replacements so a later failure can restore the original.
+    """
     parent_fd = _parent_fd(root_fd, target, path, created_dirs, make=False)
-    tmp_name = ".config-" + uuid.uuid4().hex + ".tmp"
+    tmp_name = ".ade-" + uuid.uuid4().hex + ".tmp"
     try:
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        flags = os.O_RDONLY | os.O_NOFOLLOW
         with os.fdopen(os.open(path.name, flags, dir_fd=parent_fd), "rb") as stream:
             if stream.read() != old:
-                raise OSError("config.json changed during installation")
-        fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=parent_fd)
+                raise OSError(f"{path.relative_to(target)} changed during installation")
+        fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o600, dir_fd=parent_fd)
         identity = os.fstat(fd)
         created_files.append((path.with_name(tmp_name), identity.st_dev, identity.st_ino))
         with os.fdopen(fd, "wb") as stream:
             stream.write(content)
+        # File was verified with O_NOFOLLOW, and parent is dirfd-pinned.
         os.replace(tmp_name, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        if updated is not None:
+            updated.append((path, old, content))
     finally:
         os.close(parent_fd)
 
-
-def _rollback(root_fd: int, target: Path, files: list[tuple[Path, int, int]], dirs: list[Path]) -> list[str]:
+def _rollback(root_fd: int, target: Path, files: list[tuple[Path, int, int]],
+              dirs: list[Path], updated: list[tuple[Path, bytes, bytes]]) -> list[str]:
     failures = []
+    for path, old, new in reversed(updated):
+        try:
+            _replace_existing(root_fd, target, path, old, new, files, dirs)
+        except OSError as exc:
+            failures.append(f"Cannot restore {path.relative_to(target)}: {exc}")
     for path, device, inode in reversed(files):
         try:
             parent_fd = _parent_fd(root_fd, target, path, [], make=False)
@@ -294,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         agents, skills, old_config = existing_config(target, agents, skills, available)
         desired, notes = gather(target, agents, skills)
-        creates, same, conflicts, update = preflight(target, desired, agents, old_config)
+        creates, same, conflicts, update, update_agents = preflight(target, desired, agents, old_config)
     except ValueError as exc:
         print(f"CONFLICT {CONFIG}: {exc}\nNo files changed.", file=sys.stderr)
         return 2
@@ -310,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     for path in creates:
         print(f"{'WOULD CREATE' if args.dry_run else 'CREATE'} {path.relative_to(target)}")
+    if update_agents:
+        print(f"{'WOULD UPDATE' if args.dry_run else 'UPDATE'} AGENTS.md (ADE managed routing section only)")
     if update:
         print(f"{'WOULD UPDATE' if args.dry_run else 'UPDATE'} {CONFIG} (additive selections only)")
     print(f"Summary: {len(creates)} new, {len(same)} identical, {int(update)} config update, 0 conflicts")
@@ -318,6 +347,7 @@ def main(argv: list[str] | None = None) -> int:
     created_files: list[tuple[Path, int, int]] = []
     created_dirs: list[Path] = []
     root_fd = None
+    updated_files: list[tuple[Path, bytes, bytes]] = []
     try:
         # The POSIX dir_fd + O_NOFOLLOW combination protects ancestor paths too.
         # Fail closed on runtimes that cannot supply these operations.
@@ -327,11 +357,17 @@ def main(argv: list[str] | None = None) -> int:
         root_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         for path in creates:
             _write_new(root_fd, target, path, desired[path], created_files, created_dirs)
+        if update_agents:
+            path = target / "AGENTS.md"
+            current = path.read_bytes()
+            _replace_existing(root_fd, target, path, desired[path], current,
+                              created_files, created_dirs, updated_files)
         if update:
             assert old_config is not None
-            _update_inventory(root_fd, target, desired[target / CONFIG], old_config, created_files, created_dirs)
+            _replace_existing(root_fd, target, target / CONFIG, desired[target / CONFIG],
+                              old_config, created_files, created_dirs, updated_files)
     except OSError as exc:
-        failures = _rollback(root_fd, target, created_files, created_dirs) if root_fd is not None else []
+        failures = _rollback(root_fd, target, created_files, created_dirs, updated_files) if root_fd is not None else []
         print(f"INSTALL FAILED: {exc}", file=sys.stderr)
         if failures:
             print("Rollback incomplete: " + "; ".join(failures), file=sys.stderr)
