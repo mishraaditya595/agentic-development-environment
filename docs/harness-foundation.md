@@ -13,7 +13,7 @@ python3 scripts/bootstrap.py --target /path/to/project --agents codex,claude,ope
 
 The installer copies a canonical `.agentic-dev/skill-map.json` (skill entries whose primary skill must be installed before invocation), an initially empty `.agentic-dev/harness.json`, and `.agentic-dev/bin/ade-harness.py` with its Python module.
 
-Existing AGENTS.md and CLAUDE.md files are still preserved. If the project already has them, add a pointer manually: `For development tasks, consult .agentic-dev/skill-map.json and choose the matching installed primary skill.` The generated AGENTS.md in a new project includes the pointer. Native skill selection is model-dependent.
+Existing AGENTS.md receives a validated ADE routing section unless `--no-agents-routing` is supplied. Other instructions and existing CLAUDE.md remain untouched. Updates to managed ADE files require exact matches to their known earlier hashes. Native skill selection remains model-dependent.
 
 ## Configure verification commands
 
