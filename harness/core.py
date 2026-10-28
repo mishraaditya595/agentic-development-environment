@@ -156,6 +156,21 @@ def command(args):
             config = None
         outcome = policy_audit(root, config)
         status = 0 if not outcome["issues"] and outcome["level"] == "instrumented" else 2
+    elif args.operation == "session":
+        from harness.session import apply, summary
+        outcome = (summary(root) if args.session_action == "status"
+                   else apply(root, args.session_action, title=getattr(args, "title", None),
+                              plan=getattr(args, "plan", None), step=getattr(args, "step", None),
+                              verdict=getattr(args, "verdict", None)))
+        status = 0
+    elif args.operation == "workspace":
+        from harness.workspace import inspect
+        outcome = inspect(root, args.check)
+        status = 0 if args.check is None or outcome["verdict"] == "pass" else 1
+    elif args.operation == "sensor-proof":
+        from harness.sensors import prove
+        outcome = prove(root, args.sensor)
+        status = 0 if outcome["verdict"] == "pass" else 1
     elif args.operation == "doctor":
         outcome = doctor(root)
         status = 0 if not outcome["issues"] else 2
@@ -189,6 +204,20 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("doctor")
     sub.add_parser("audit")
+    p = sub.add_parser("session", help="Record or read local, append-only work checkpoints")
+    nested = p.add_subparsers(dest="session_action", required=True)
+    q = nested.add_parser("start")
+    q.add_argument("--title", required=True)
+    q.add_argument("--plan")
+    q = nested.add_parser("checkpoint")
+    q.add_argument("--step", required=True)
+    q = nested.add_parser("close")
+    q.add_argument("--verdict", choices=("verified", "partial", "blocked"), required=True)
+    nested.add_parser("status")
+    p = sub.add_parser("workspace", help="Inspect member repositories; --check executes member checks")
+    p.add_argument("--check", choices=sorted(VALID_NAMES))
+    p = sub.add_parser("sensor-proof", help="Run clean and violating fixtures through declared sensors")
+    p.add_argument("--sensor")
     for name in ("check","verify"):
         p=sub.add_parser(name)
         p.add_argument("--check",action="append",default=[])
