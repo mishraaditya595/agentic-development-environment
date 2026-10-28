@@ -45,34 +45,37 @@ def changed(root: Path):
         return None
 
 
+def _context(event, message):
+    return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": message}}
+
+
 def process(root: Path, event: str, payload: dict):
     if event == "prompt":
         message = hook_context(root)
-        return {"systemMessage": message,
-                "hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+        return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
                                        "additionalContext": message}}
     if event != "stop":
         raise ValueError("Unsupported hook event")
     if payload.get("stop_hook_active"):
-        return {"systemMessage": "ADE stop hook already requested continuation; do not claim unverified checks passed."}
+        return _context("Stop", "ADE stop hook already requested continuation; do not claim unverified checks passed.")
     dirty = changed(root)
     if dirty is False:
-        return {"systemMessage": "ADE stop hook skipped: no local Git working-tree changes. This is not an independent verification verdict."}
+        return _context("Stop", "ADE stop hook skipped: no local Git working-tree changes. This is not an independent verification verdict.")
     if dirty is None:
-        return {"systemMessage": "ADE stop hook could not establish Git change state; verification remains unconfirmed."}
+        return _context("Stop", "ADE stop hook could not establish Git change state; verification remains unconfirmed.")
     try:
         config = config_for(root)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        return {"systemMessage": f"ADE fast check unavailable: {type(exc).__name__}. Do not claim tests passed."}
+        return _context("Stop", f"ADE fast check unavailable: {type(exc).__name__}. Do not claim tests passed.")
     item = config["checks"].get("fast")
     if not item:
-        return {"systemMessage": "ADE fast check not configured; do not claim verification."}
+        return _context("Stop", "ADE fast check not configured; do not claim verification.")
     # Keep interactive stop hooks bounded independently of the configured
     # project check timeout. No subprocess continuation after timeouts.
     check = run_one(root, "fast", {**item, "timeout_seconds": min(45, item.get("timeout_seconds",120))})
     if check["status"] == "pass":
-        return {"systemMessage": "ADE fast check passed. Full checks, requirements and independent review remain separate."}
+        return _context("Stop", "ADE fast check passed. Full checks, requirements and independent review remain separate.")
     if check["status"] == "fail":
         return {"decision": "block", "reason": "ADE fast check failed (exit code " +
                 str(check["exit_code"]) + "). Inspect and correct the project test output, then reverify."}
-    return {"systemMessage": "ADE fast check blocked or timed out; stop was not prevented. Report verification as blocked."}
+    return _context("Stop", "ADE fast check blocked or timed out; stop was not prevented. Report verification as blocked.")

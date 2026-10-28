@@ -90,6 +90,8 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
     out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/__init__.py"] = (ROOT / "harness/__init__.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/policy.py"] = (ROOT / "harness/policy.py").read_bytes()
+    out[target / ".agentic-dev/bin/ade-hook.py"] = (ROOT / "scripts/ade-hook.py").read_bytes()
+    out[target / ".agentic-dev/bin/harness/hooks.py"] = (ROOT / "harness/hooks.py").read_bytes()
     for module in ("session.py", "workspace.py", "sensors.py"):
         out[target / ".agentic-dev/bin/harness" / module] = (ROOT / "harness" / module).read_bytes()
     if not (target / ".agentic-dev/sensors.json").exists():

@@ -19,14 +19,14 @@ def main(argv=None):
     try:
         raw = sys.stdin.read(65537)
         if len(raw) > 65536:
-            raise ValueError("Oversized hook input")
+            raw = "{}"  # Keep routing even with unexpectedly large payloads.
         data = json.loads(raw) if raw.strip() else {}
         if not isinstance(data, dict):
             raise ValueError("Hook input must be JSON object")
         result = process(project, args.event, data)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        result = {"systemMessage":"ADE hook could not evaluate input: " + type(exc).__name__ +
-                  "; do not treat verification as passing."}
+        result = {"hookSpecificOutput":{"hookEventName": "UserPromptSubmit" if args.event == "prompt" else "Stop",
+                  "additionalContext": "ADE hook could not evaluate input; verification remains unconfirmed."}}
     print(json.dumps(result))
     return 0
 
