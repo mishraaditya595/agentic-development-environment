@@ -58,7 +58,7 @@ class HookTests(unittest.TestCase):
         with patch("harness.hooks.changed",return_value=True):
             self.assertIn("unavailable",process(self.root,"stop",{})["hookSpecificOutput"]["additionalContext"])
         with patch("harness.hooks.changed",return_value=False):
-            self.assertIn("skipped",process(self.root,"stop",{})["systemMessage"])
+            self.assertIn("skipped",process(self.root,"stop",{})["hookSpecificOutput"]["additionalContext"])
 
     def test_hook_installation_is_opt_in_and_idempotent(self):
         target=self.root/"project"
@@ -118,6 +118,26 @@ class HookTests(unittest.TestCase):
                 proc=subprocess.run(["sh","-c",command],cwd=project,input="{}",capture_output=True,text=True,
                                     env={**os.environ,"CLAUDE_PROJECT_DIR":str(project)})
                 self.assertEqual(proc.returncode,0)
+
+    def test_real_dirty_tree_and_loop_guard(self):
+        import os
+        project=self.root / "realgit"
+        project.mkdir()
+        subprocess.run(["git","init","-q"],cwd=project,check=True)
+        subprocess.run(["git","config","user.email","fixture@example.invalid"],cwd=project,check=True)
+        subprocess.run(["git","config","user.name","Fixture"],cwd=project,check=True)
+        (project/"tracked.txt").write_text("original")
+        subprocess.run(["git","add","tracked.txt"],cwd=project,check=True)
+        subprocess.run(["git","commit","-qm","initial"],cwd=project,check=True)
+        (project/".agentic-dev").mkdir()
+        (project/".agentic-dev/harness.json").write_text(json.dumps({"schema_version":1,
+          "checks":{"fast":{"argv":[sys.executable,"-c","raise SystemExit(4)"]}}}))
+        (project/"tracked.txt").write_text("modified")
+        first=process(project,"stop",{})
+        self.assertEqual(first["decision"],"block")
+        repeated=process(project,"stop",{"stop_hook_active":True})
+        self.assertNotIn("decision",repeated)
+        self.assertIn("unverified",repeated["hookSpecificOutput"]["additionalContext"])
 
     def test_existing_settings_prevent_any_hook_writes(self):
         target=self.root/"project"

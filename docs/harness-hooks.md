@@ -1,39 +1,27 @@
 # Optional ADE lifecycle hooks
 
-ADE's normal bootstrap installs skills, routing instructions, and a check runner. **It does not automatically enable hooks.** Project hooks can execute commands, so installing them is a separate explicit decision.
+ADE's standard bootstrap **only copies inert hook scripts**. Hooks remain disabled until you explicitly install project settings. Hook execution requires Python 3, a supported shell, and an actual configured `fast` check.
 
-## Supported integrations
+## Claude Code
 
-- Claude Code project hook configuration in `.claude/settings.json`.
-- Codex project hook configuration in `.codex/hooks.json` (project must be trusted).
-- OpenCode continues to use ADE's portable Agent Skills and manually invoked checks. A native OpenCode adapter is not claimed supported here.
+Use `python3 scripts/install-hooks.py --target /absolute/project --agents claude --local --dry-run`, review the preview, then omit `--dry-run`. The `--local` option creates `.claude/settings.local.json` for your own machine, avoiding team-wide activation. Without `--local`, settings are written to `.claude/settings.json` and **may affect collaborators if committed**. Existing settings are never overwritten; on conflict, the installer prints the exact JSON `hooks` object to merge manually.
 
-Reference documentation: [Claude Code hooks](https://code.claude.com/docs/en/hooks), [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-advanced).
+Claude commands resolve scripts through `CLAUDE_PROJECT_DIR`, so they work when launched from nested folders or in projects without Git. Each command ends with `|| exit 0` to prevent a missing executable from returning status 2 and blocking prompts or stop events. Shell execution and `CLAUDE_PROJECT_DIR` availability should still be validated in your Claude version.
 
-## Install explicitly
+## Codex
 
-From an ADE checkout, after you have installed the normal bundle in your target project:
+Run `python3 scripts/install-hooks.py --target /absolute/project --agents codex --dry-run` and review the generated `.codex/hooks.json`; then omit `--dry-run`. Its command embeds the absolute hook-script path, which avoids reliance on `git rev-parse` from monorepos and submodules. Moving a repository requires reinstalling or updating that path. Existing settings are never overwritten; the installer prints a merge snippet on conflict.
 
-```sh
-python3 scripts/install-hooks.py --target /path/to/repo --agents claude,codex --dry-run
-python3 scripts/install-hooks.py --target /path/to/repo --agents claude,codex
-```
+Codex's official [Hooks documentation](https://learn.chatgpt.com/docs/hooks) describes hooks configuration, and the [configuration reference](https://learn.chatgpt.com/docs/config-file/config-basic) lists `features.hooks`. However **the adapter is not yet validated in a live Codex session**. Do not assume `additionalContext`, stop blocking, or project trust works identically to Claude across versions. Verify in a disposable project before relying on it.
 
-The command refuses to overwrite existing settings, even when they contain a compatible custom hook. Manually merge configurations if there is a conflict. It copies `ade-hook.py` and its module into the installed bin and creates separate runtime hook JSON files only when absent. No automatic edits to `.gitignore` or approval configuration.
+## Behavior and safety
 
-## What happens in a coding session
+At UserPromptSubmit the hook gives the model (not the user) a brief skill-routing reminder through `hookSpecificOutput.additionalContext`. At Stop it checks Git working-tree changes; if changes exist, it runs the configured fast check for up to 45 seconds. A failed check asks for one bounded continuation; the `stop_hook_active` guard prevents loops. Missing tools, a failed hook script, absent config or a clean tree cannot be interpreted as proof of verification.
 
-**UserPromptSubmit:** adds a short reminder to consult `.agentic-dev/skill-map.json` and use only skills present in `.agentic-dev/config.json`. This provides context; it does not classify or force a skill activation.
+The 64 KiB input limit is fail-open; an oversized prompt payload falls back to default routing context. Hook output deliberately excludes raw test logs. These hooks are advisory, not authorization boundaries or alternatives to required CI.
 
-**Stop:** if Git shows working-tree changes, runs the configured `fast` check with at most a 45-second execution limit. If it fails, asks the coding agent to continue fixing the problem, but only for one continuation. The second stop does not block again. If the test is unconfigured, Git is unavailable, or execution times out, it reports that verification is unconfirmed rather than implying it passed. If there are no working-tree changes it skips; committed work still needs full CI and review.
+## Existing settings, monorepos, and uninstall
 
-Enable a real fast check first in `.agentic-dev/harness.json`. Do not use a shell command or destructive command there; the harness runs user-configured argument arrays directly.
+With an existing `.claude/settings.json`, choose `--local` or copy the printed `hooks` block and merge it carefully. In a monorepo, run the installer for the exact ADE project root rather than assuming the Git root. Codex uses that absolute directory; Claude uses its project directory variable.
 
-## Security boundaries
-
-- Native hooks are advisory—not a substitute for branch protection, required CI or human merge approval.
-- A repository-installed script can be modified by code with write permission, so a hook is not an immutable policy boundary.
-- Existing configuration files are never overwritten; conflicted installation aborts before writing anything.
-- The stop hook avoids printing command output into the prompt to reduce accidental secret propagation. It reports status and limited reason only.
-- Repeated stop failures result in a warning, not an infinite correction loop.
-- Actual behavior depends on the installed version of the coding agent. Validate with a throwaway project and review hook permissions before enabling in production repositories.
+To disable, remove only the ADE hook entries from the selected `.claude/settings.json`, `.claude/settings.local.json`, or `.codex/hooks.json`. Do not delete other hook entries or ADE-managed scripts, which remain available but inert. Review project-trust prompts and settings after any changes.
