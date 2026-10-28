@@ -67,27 +67,12 @@ def read_locked(handle):
 
 
 def events(root: Path):
-    p = root / STATE
-    if p.is_symlink():
-        raise ValueError("Session state path must not be a symlink")
-    if not p.exists():
-        return []
-    if not p.is_file():
-        raise ValueError("Session state is not a file")
-    out = []
-    for num, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
-        try:
-            event = json.loads(line)
-            if not isinstance(event, dict) or event.get("kind") not in ("start", "checkpoint", "close"):
-                raise ValueError("invalid event")
-            out.append(event)
-        except ValueError as exc:
-            raise ValueError(f"Session journal line {num} is invalid: {exc}") from exc
-    return out
+    with journal(root) as handle:
+        records, _, _ = read_locked(handle)
+        return records
 
 
-def summary(root: Path):
-    records = events(root)
+def _summarize(records):
     active = None
     history = []
     for item in records:
@@ -106,6 +91,10 @@ def summary(root: Path):
             history.append({**active, "finished_at": item.get("at"), "verdict": item.get("verdict")})
             active = None
     return {"active": active, "completed_count": len(history), "last_completed": history[-1] if history else None}
+
+
+def summary(root: Path):
+    return _summarize(events(root))
 
 
 def append(root: Path, entry: dict):
