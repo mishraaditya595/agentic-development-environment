@@ -9,6 +9,7 @@ adding agents or skills.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -37,6 +38,14 @@ AGENT_DESTINATIONS = {
     "claude": Path(".claude/skills"),
 }
 CONFIG = Path(".agentic-dev/config.json")
+LEGACY = json.loads((ROOT / "routing/legacy-v1-blobs.json").read_text())["files"]
+
+def git_blob(data):
+    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+
+def content_hash(data):
+    return hashlib.sha256(data).hexdigest()
+
 
 
 def names(value: str) -> list[str]:
@@ -47,7 +56,7 @@ def catalog() -> list[str]:
     return sorted(p.name for p in SKILL_ROOT.iterdir() if p.is_dir() and (p / "SKILL.md").is_file())
 
 
-def config_bytes(agents: list[str], skills: list[str]) -> bytes:
+def config_bytes(agents: list[str], skills: list[str], manifest=None) -> bytes:
     config = {
         "schema_version": 1,
         "agents": agents,
@@ -55,6 +64,9 @@ def config_bytes(agents: list[str], skills: list[str]) -> bytes:
         "installation": "local-copy",
         "update_policy": "refuse modified or conflicting destinations",
     }
+    if manifest is not None:
+        config["schema_version"] = 2
+        config["files"] = manifest
     return (json.dumps(config, indent=2) + "\n").encode("utf-8")
 
 
