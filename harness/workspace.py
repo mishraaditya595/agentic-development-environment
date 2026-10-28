@@ -22,7 +22,7 @@ def members(root: Path):
             raise ValueError("Every member requires name and path")
         name, rel = member["name"].strip(), Path(member["path"])
         if (not name or name in seen or rel.is_absolute() or len(rel.parts) != 1
-                or rel.parts[0] in (".", "..")):
+                or rel.parts[0] in (".", "..", ".git", ".agentic-dev")):
             raise ValueError("Duplicate member or invalid relative path")
         path = root / rel
         if path.is_symlink() or not path.is_dir() or path.parent != root:

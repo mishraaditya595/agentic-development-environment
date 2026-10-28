@@ -34,6 +34,9 @@ def registry(root: Path):
     for sensor in data["sensors"]:
         if not isinstance(sensor, dict):
             raise ValueError("Invalid sensor")
+        unsupported = set(sensor) - {"id", "argv", "clean", "violation", "timeout_seconds"}
+        if unsupported:
+            raise ValueError("Unsupported sensor keys: " + ", ".join(sorted(unsupported)))
         name, argv = sensor.get("id"), sensor.get("argv")
         if (not isinstance(name, str) or not name or name in out
                 or not isinstance(argv, list) or not argv
