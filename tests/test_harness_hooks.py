@@ -46,17 +46,17 @@ class HookTests(unittest.TestCase):
             self.assertIn("exit code 3",first["reason"])
             repeated=process(self.root,"stop",{"stop_hook_active":True})
             self.assertNotIn("decision",repeated)
-            self.assertIn("unverified",repeated["systemMessage"])
+            self.assertIn("unverified",repeated["hookSpecificOutput"]["additionalContext"])
 
     def test_stop_pass_and_warnings(self):
         self.check(0)
         with patch("harness.hooks.changed",return_value=True):
             success=process(self.root,"stop",{})
-            self.assertIn("passed",success["systemMessage"])
+            self.assertIn("passed",success["hookSpecificOutput"]["additionalContext"])
             self.assertNotIn("decision",success)
         (self.root/".agentic-dev/harness.json").unlink()
         with patch("harness.hooks.changed",return_value=True):
-            self.assertIn("unavailable",process(self.root,"stop",{})["systemMessage"])
+            self.assertIn("unavailable",process(self.root,"stop",{})["hookSpecificOutput"]["additionalContext"])
         with patch("harness.hooks.changed",return_value=False):
             self.assertIn("skipped",process(self.root,"stop",{})["systemMessage"])
 
@@ -80,6 +80,45 @@ class HookTests(unittest.TestCase):
         self.assertEqual(second.returncode,2)
         self.assertEqual(settings.read_text(),'{"custom":"mine"}')
 
+    def test_local_install_and_runtime_commands_in_nested_non_git_project(self):
+        import os
+        for nested in (False, True):
+            with tempfile.TemporaryDirectory() as directory:
+                project=Path(directory)/"parent"
+                project.mkdir()
+                if nested:
+                    project=project/"nested"
+                    project.mkdir()
+                self.assertEqual(run(BOOTSTRAP,project,"--preset","minimal").returncode,0)
+                installed=run(INSTALLER,project,"--agents","claude,codex","--local")
+                self.assertEqual(installed.returncode,0,installed.stderr)
+                self.assertTrue((project/".claude/settings.local.json").exists())
+                claude=json.loads((project/".claude/settings.local.json").read_text())
+                codex=json.loads((project/".codex/hooks.json").read_text())
+                sub=project/"subfolder"
+                sub.mkdir()
+                for name,conf in (("claude",claude),("codex",codex)):
+                    for event in ("UserPromptSubmit","Stop"):
+                        command=conf["hooks"][event][0]["hooks"][0]["command"]
+                        environment={**os.environ,"CLAUDE_PROJECT_DIR":str(project)}
+                        outcome=subprocess.run(["sh","-c",command],cwd=sub,input="{}",capture_output=True,text=True,env=environment)
+                        self.assertEqual(outcome.returncode,0,(name,event,outcome.stderr))
+                self.assertEqual(run(INSTALLER,project,"--agents","claude,codex","--local").returncode,0)
+
+    def test_missing_hook_script_never_blocks_prompt(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            project=Path(directory)
+            self.assertEqual(run(BOOTSTRAP,project,"--preset","minimal").returncode,0)
+            self.assertEqual(run(INSTALLER,project,"--agents","claude,codex").returncode,0)
+            (project/".agentic-dev/bin/ade-hook.py").unlink()
+            for filename in (".claude/settings.json",".codex/hooks.json"):
+                conf=json.loads((project/filename).read_text())
+                command=conf["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+                proc=subprocess.run(["sh","-c",command],cwd=project,input="{}",capture_output=True,text=True,
+                                    env={**os.environ,"CLAUDE_PROJECT_DIR":str(project)})
+                self.assertEqual(proc.returncode,0)
+
     def test_existing_settings_prevent_any_hook_writes(self):
         target=self.root/"project"
         target.mkdir()
@@ -90,4 +129,4 @@ class HookTests(unittest.TestCase):
         result=run(INSTALLER,target,"--agents","claude,codex")
         self.assertEqual(result.returncode,2)
         self.assertFalse((target/".codex").exists())
-        self.assertFalse((target/".agentic-dev/bin/ade-hook.py").exists())
+        self.assertTrue((target/".agentic-dev/bin/ade-hook.py").exists())
