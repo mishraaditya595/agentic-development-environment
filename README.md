@@ -113,3 +113,7 @@ Apache-2.0. See [LICENSE](LICENSE).
 ## Harness Foundation
 
 ADE now provides an initial executable, project-configured verification layer alongside portable skills. It installs a canonical task-to-skill routing map, runs explicit project checks with truthful pass/fail/blocked outcomes, and can produce JSON evidence. Existing AGENTS.md content outside ADE's managed routing section remains preserved; CLAUDE.md is not overwritten. Native hooks and deterministic prompt routing remain future work. Read [the harness guide](docs/harness-foundation.md).
+
+## Optional native hooks
+
+Claude Code and Codex users can opt into project lifecycle hooks with `python3 scripts/install-hooks.py --target /path/to/repo --agents claude,codex --dry-run`, followed by the same command without `--dry-run` after review. Existing hook configuration is never overwritten. Read [the hook guide](docs/harness-hooks.md) before enabling; OpenCode remains on portable skills/manual checks.
