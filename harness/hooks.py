@@ -22,7 +22,13 @@ def hook_context(root: Path):
         routes = json.loads(path.read_text(encoding="utf-8")).get("routes", [])
     except (OSError, ValueError, AttributeError):
         return "ADE routing map invalid; do not assume skills are available."
-    names = sorted({x.get("primary") for x in routes if isinstance(x, dict) and isinstance(x.get("primary"), str)})
+    try:
+        config = json.loads((root / ".agentic-dev/config.json").read_text(encoding="utf-8"))
+        installed = set(config.get("skills", []))
+    except (OSError, ValueError, AttributeError, TypeError):
+        installed = set()
+    names = sorted({x.get("primary") for x in routes if isinstance(x, dict)
+                    and isinstance(x.get("primary"), str) and x.get("primary") in installed})
     return ("ADE skill routing: consult .agentic-dev/skill-map.json and choose an "
             "installed primary skill matching the user request. Known primary names: " +
             ", ".join(names[:20]) + ". Never merge or deploy without explicit authorization.")
