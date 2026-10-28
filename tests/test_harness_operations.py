@@ -1,5 +1,6 @@
 """Regression tests for explicit work state, workspace gating and sensor proofs."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
 import tempfile
@@ -23,6 +24,17 @@ class OperationsTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         (self.root / ".agentic-dev").mkdir()
+
+    def test_status_does_not_create_missing_journal(self):
+        from harness.session import events
+        state = self.root / ".agentic-dev/state"
+        self.assertFalse(state.exists())
+        self.assertEqual(summary(self.root)["completed_count"], 0)
+        self.assertEqual(events(self.root), [])
+        self.assertFalse(state.exists())
+        state.mkdir()
+        self.assertEqual(summary(self.root)["completed_count"], 0)
+        self.assertFalse((state / "sessions.jsonl").exists())
 
     def test_session_start_checkpoint_close_and_resume(self):
         start = apply(self.root, "start", title="Implement offline history", plan="docs/plans/history.md")
@@ -91,6 +103,66 @@ class OperationsTests(unittest.TestCase):
         registry_file["sensors"][0]["argv"]=[sys.executable,"-c","print('always passing')","{path}"]
         save(self.root / ".agentic-dev/sensors.json", registry_file)
         self.assertEqual(prove(self.root)["verdict"], "incomplete")
+
+    def test_simultaneous_session_starts_are_serialized(self):
+        def start(_):
+            try:
+                apply(self.root, "start", title="Concurrent")
+                return "started"
+            except ValueError:
+                return "already active"
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            statuses = list(executor.map(start, range(2)))
+        self.assertEqual(sorted(statuses), ["already active", "started"])
+        self.assertEqual(summary(self.root)["active"]["title"], "Concurrent")
+
+    def test_truncated_journal_recovers_on_next_write(self):
+        from harness.session import events
+        apply(self.root, "start", title="First")
+        journal = self.root / ".agentic-dev/state/sessions.jsonl"
+        with journal.open("ab") as stream:
+            stream.write(b'{"kind":"checkpoint","step":"broken')
+        self.assertEqual(len(events(self.root)), 1)
+        self.assertEqual(summary(self.root)["active"]["title"], "First")
+        apply(self.root, "checkpoint", step="Recovered")
+        self.assertEqual(len(events(self.root)), 2)
+        self.assertNotIn(b"broken", journal.read_bytes())
+
+    def test_invalid_complete_journal_line_is_not_silently_dropped(self):
+        apply(self.root, "start", title="First")
+        journal = self.root / ".agentic-dev/state/sessions.jsonl"
+        with journal.open("ab") as stream:
+            stream.write(b'invalid json\n')
+        with self.assertRaises(ValueError):
+            summary(self.root)
+        with self.assertRaises(ValueError):
+            apply(self.root, "checkpoint", step="No data loss")
+
+    def test_journal_symlinked_state_directory_rejected(self):
+        with tempfile.TemporaryDirectory() as outside:
+            (self.root / ".agentic-dev/state").symlink_to(Path(outside), target_is_directory=True)
+            with self.assertRaises(OSError):
+                apply(self.root, "start", title="Forbidden")
+            self.assertFalse((Path(outside) / "sessions.jsonl").exists())
+
+    def test_reserved_workspace_members_rejected(self):
+        for member in (".git", ".agentic-dev"):
+            (self.root / member).mkdir(exist_ok=True)
+            save(self.root / ".agentic-dev/workspace.json", {"schema_version":1,
+                "repositories":[{"name":"reserved","path":member}]})
+            with self.assertRaises(ValueError):
+                inspect(self.root)
+
+    def test_unknown_sensor_property_rejected(self):
+        folder = self.root / "fixtures"
+        folder.mkdir()
+        (folder / "clean").write_text("safe")
+        (folder / "broken").write_text("bad")
+        save(self.root / ".agentic-dev/sensors.json", {"schema_version":1,"sensors":[{
+            "id":"invalid", "argv":[sys.executable, "{path}"],
+            "clean":"fixtures/clean","violation":"fixtures/broken","timeout":5}]})
+        with self.assertRaisesRegex(ValueError, "Unsupported sensor"):
+            registry(self.root)
 
     def test_sensor_rejects_untrusted_paths(self):
         save(self.root / ".agentic-dev/sensors.json", {"schema_version":1,"sensors":[{

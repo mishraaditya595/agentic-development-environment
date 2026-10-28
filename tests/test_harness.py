@@ -1,4 +1,6 @@
 import json
+import os
+import time
 import sys
 import tempfile
 import unittest
@@ -65,6 +67,45 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(result["level"], "configured")
         self.assertTrue(result["issues"])
         self.assertEqual(result["invariants"][0]["verification_status"], "not-run")
+
+    def test_rejects_unknown_check_options(self):
+        self.configure({"fast": {"argv": [sys.executable, "-c", "print('hi')"], "shell": True}})
+        with self.assertRaises(ValueError):
+            config_for(self.root)
+
+    def test_evidence_folder_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as outside:
+            (self.root / ".agentic-dev/evidence").symlink_to(Path(outside), target_is_directory=True)
+            with self.assertRaises(ValueError):
+                write_evidence(self.root, {"outcome": "blocked"}, Path(".agentic-dev/evidence/leak.json"))
+            self.assertFalse((Path(outside) / "leak.json").exists())
+
+    def test_check_timeout_terminates_child_process_group(self):
+        pid_file = self.root / "worker.pid"
+        child = ("import os,time;open(" + repr(str(pid_file)) +
+                 ",'w').write(str(os.getpid()));time.sleep(30)")
+        self.configure({"fast": {"argv": [sys.executable, "-c",
+            "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',sys.argv[1]]);time.sleep(30)", child],
+            "timeout_seconds": 1}})
+        result = gather_checks(self.root, ["fast"])[0]
+        self.assertEqual(result["status"], "blocked")
+        if pid_file.exists():
+            pid = int(pid_file.read_text())
+            # A zombie may briefly exist, but the child must not be live.
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                if Path("/proc") .is_dir():
+                    proc_state = Path("/proc") / str(pid) / "stat"
+                    if proc_state.exists():
+                        try:
+                            status = proc_state.read_text()
+                        except OSError:
+                            status = ""  # Child already reaped between observations
+                        if status:
+                            self.assertIn(status.split()[2], ("Z", "X"))
 
     def test_routing_integrity(self):
         routes=json.loads((ROOT/"routing/skill-map.json").read_text())["routes"]

@@ -27,8 +27,8 @@ For sibling repositories, create a workspace root and the following file at .age
 
 Each member must be an existing direct child directory. The workspace process does not clone or modify member repositories. Run:
 
-    python3 /path/to/ADE/scripts/ade-harness.py --target /path/to/workspace workspace
-    python3 /path/to/ADE/scripts/ade-harness.py --target /path/to/workspace workspace --check fast
+    python3 .agentic-dev/bin/ade-harness.py --target . workspace
+    python3 .agentic-dev/bin/ade-harness.py --target . workspace --check fast
 
 The first displays member setup state. The second executes the specifically configured fast check in each member and fails if any member check fails or is blocked. Do not call this cross-repo contract compatibility verification; API review and merge order remain separate.
 
@@ -58,3 +58,10 @@ The proof requires the clean fixture to exit zero and the violating fixture to e
 ## Safety and limitations
 
 Everything is explicit. Commands are argv arrays, not shell interpolation. Repositories are not merged or deployed. Session journals and evidence are excluded from Git by .agentic-dev/.gitignore, not uploaded anywhere. Current journal writes are not a multi-host distributed task store, and workspace checks do not synchronize independent Git branches.
+
+
+## Journal recovery
+
+Each operation locks the journal before reading and writing. A trailing incomplete JSON record after a crash is ignored during status and truncated before a subsequent successful write; a malformed *complete* record is not discarded automatically. Back up the file and manually repair it before retrying. Only a local POSIX filesystem supporting advisory locks is supported.
+
+If you already have a custom `.agentic-dev/.gitignore`, make sure it excludes `state/` and `evidence/`; ADE does not overwrite it. Existing `sensors.json` configurations are user-owned and preserved.

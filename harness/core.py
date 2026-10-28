@@ -10,6 +10,8 @@ import datetime as dt
 import hashlib
 import json
 import os
+import signal
+import stat
 from pathlib import Path
 import re
 import subprocess
@@ -45,6 +47,8 @@ def config_for(root: Path):
     for name, item in cmds.items():
         if name not in VALID_NAMES or not isinstance(item, dict):
             raise ValueError("Unknown check or invalid check object: " + str(name))
+        if set(item) - {"argv", "timeout_seconds"}:
+            raise ValueError(f"{name}: unsupported check properties: {sorted(set(item) - {'argv', 'timeout_seconds'})}")
         argv = item.get("argv")
         if (not isinstance(argv, list) or not argv or
                 not all(isinstance(v, str) and v and "\x00" not in v for v in argv)):
@@ -59,16 +63,24 @@ def config_for(root: Path):
 def run_one(root: Path, name: str, item: dict):
     argv, timeout = item["argv"], item.get("timeout_seconds", 120)
     start = time.monotonic()
+    proc = None
     try:
-        proc = subprocess.run(argv, cwd=root, capture_output=True, text=True, errors="replace",
-                              timeout=timeout, shell=False, env={**os.environ, "CI":"true"})
+        proc = subprocess.Popen(argv, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, errors="replace", start_new_session=True,
+                                env={**os.environ, "CI": "true"})
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # Every check is its own process group, including child test workers.
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+            return report_entry(name, "blocked", command=argv,
+                                duration_ms=round((time.monotonic()-start)*1000),
+                                detail="Timed out; process group terminated")
         status = "pass" if proc.returncode == 0 else "fail"
-        detail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-6000:]
+        detail = ((stdout or "") + "\n" + (stderr or "")).strip()[-6000:]
         return report_entry(name, status, command=argv, returncode=proc.returncode,
                             duration_ms=round((time.monotonic()-start)*1000), detail=detail)
-    except subprocess.TimeoutExpired:
-        return report_entry(name, "blocked", command=argv,
-                            duration_ms=round((time.monotonic()-start)*1000), detail="Timed out; process was terminated")
     except OSError as exc:
         return report_entry(name, "blocked", command=argv,
                             duration_ms=round((time.monotonic()-start)*1000), detail=f"Cannot execute: {exc}")
@@ -98,20 +110,48 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def evidence_path(root: Path, destination: Path) -> Path:
+    """Prevalidate destination without following a symlink or escaping project."""
+    if destination.is_absolute():
+        raise ValueError("Evidence path must be project-relative")
+    parts = destination.parts
+    if len(parts) != 3 or parts[:2] != (".agentic-dev", "evidence") or parts[2] in ("", ".", ".."):
+        raise ValueError("Evidence output must be a direct child of .agentic-dev/evidence/")
+    for path in (root / ".agentic-dev", root / ".agentic-dev/evidence", root / destination):
+        if path.is_symlink():
+            raise ValueError("Evidence paths must not be symlinks")
+    if (root / destination).exists():
+        raise ValueError("Evidence file exists; refusal to overwrite")
+    return root / destination
+
+
 def write_evidence(root: Path, report: dict, destination: Path):
-    state = root / ".agentic-dev/evidence"
-    path = destination if destination.is_absolute() else root / destination
-    # Evidence belongs under the reserved directory, not arbitrary project files.
-    base = state.resolve()
-    if path.is_symlink() or base not in path.resolve().parents:
-        raise ValueError("Evidence output must be a new file under .agentic-dev/evidence/")
-    if path.exists():
-        raise ValueError("Evidence file already exists; refusal to overwrite")
-    state.mkdir(parents=True, exist_ok=True)
-    payload = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    with path.open("xb") as output:
-        output.write(payload)
-    return str(path.relative_to(root))
+    import errno
+    path = evidence_path(root, destination)
+    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        try:
+            folder = os.open(".agentic-dev", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
+        except OSError as exc:
+            raise ValueError(f"Invalid ADE directory: {exc}") from exc
+        try:
+            try:
+                os.mkdir("evidence", mode=0o700, dir_fd=folder)
+            except FileExistsError:
+                pass
+            fd = os.open("evidence", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=folder)
+            try:
+                output = os.open(destination.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                 0o600, dir_fd=fd)
+                with os.fdopen(output, "wb") as stream:
+                    stream.write((json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+            finally:
+                os.close(fd)
+        finally:
+            os.close(folder)
+    finally:
+        os.close(root_fd)
+    return str(destination)
 
 
 def doctor(root: Path):
@@ -121,7 +161,15 @@ def doctor(root: Path):
         checks = {name: "configured" for name in config["checks"]}
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         notes.append(str(exc))
-    for file in ("AGENTS.md", "CLAUDE.md", ".agentic-dev/skill-map.json"):
+    try:
+        selection = json.loads((root / ".agentic-dev/config.json").read_text(encoding="utf-8"))
+        required = ["AGENTS.md", ".agentic-dev/skill-map.json"]
+        if "claude" in selection.get("agents", []):
+            required.append("CLAUDE.md")
+    except (OSError, ValueError, AttributeError):
+        required = ["AGENTS.md", ".agentic-dev/skill-map.json"]
+        notes.append("Could not read ADE installed agent inventory")
+    for file in required:
         if not (root / file).is_file():
             notes.append(f"Missing: {file}")
     dirs = {name: (root / name).is_dir() for name in (".agents/skills", ".claude/skills", ".agentic-dev/workflows")}
@@ -230,6 +278,10 @@ def main(argv=None):
     if args.operation=="prove-failure" and args.probe_argv and args.probe_argv[0]=="--":
         args.probe_argv=args.probe_argv[1:]
     try:
+        if args.operation == "prove-failure" and not args.probe_argv:
+            parser.error("prove-failure requires a probe command after --")
+        if args.evidence:
+            evidence_path(Path(args.target).resolve(), Path(args.evidence))
         return command(args)
     except (ValueError,OSError,json.JSONDecodeError) as exc:
         print(json.dumps({"status":"blocked","error":str(exc)}),file=sys.stderr)
