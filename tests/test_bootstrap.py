@@ -262,6 +262,23 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual((t / ".agentic-dev/config.json").read_bytes(), old_config)
             self.assertFalse((t / ".claude").exists())
 
+    def test_installed_harness_cli_executes_configured_checks(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "standard").returncode, 0)
+            entry = t / ".agentic-dev/bin/ade-harness.py"
+            self.assertTrue(entry.is_file())
+            checks = t / ".agentic-dev/harness.json"
+            checks.write_text(json.dumps({"schema_version":1,"checks":{
+                "fast":{"argv":[sys.executable,"-c","print('verified')"]}
+            }}))
+            completed = subprocess.run([sys.executable,str(entry),"--target",str(t),
+                "check","--check","fast"], capture_output=True,text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(json.loads(completed.stdout)["verdict"], "pass")
+            self.assertEqual(run(t, "--preset", "standard").returncode, 0)
+            self.assertEqual(json.loads(checks.read_text())["checks"]["fast"]["argv"][0], sys.executable)
+
     def test_unknown_skill_is_invalid(self):
         with tempfile.TemporaryDirectory() as p:
             result = run(Path(p), "--skills", "made-up-skill")

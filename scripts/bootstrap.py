@@ -66,6 +66,7 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
         for source in sorted((ROOT / category).rglob("*")):
             if source.is_file():
                 out[target / ".agentic-dev" / category / source.relative_to(ROOT / category)] = source.read_bytes()
+    out[target / ".agentic-dev/.gitignore"] = b"state/\nevidence/\n"
     # A stable catalog survives additive skill installs without unsafe file rewrites.
     # Agents must only invoke entries whose primary skill is actually installed.
     out[target / ".agentic-dev/skill-map.json"] = (ROOT / "routing/skill-map.json").read_bytes()
