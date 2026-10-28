@@ -3,6 +3,8 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
