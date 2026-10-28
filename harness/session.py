@@ -29,13 +29,27 @@ def journal(root, exclusive=False):
     parent = directory = handle = None
     try:
         parent = os.open(".agentic-dev", flags, dir_fd=fd_root)
+        if exclusive:
+            try:
+                os.mkdir("state", 0o700, dir_fd=parent)
+            except FileExistsError:
+                pass
         try:
-            os.mkdir("state", 0o700, dir_fd=parent)
-        except FileExistsError:
-            pass
-        directory = os.open("state", flags, dir_fd=parent)
-        handle = os.open("sessions.jsonl", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
-                         0o600, dir_fd=directory)
+            directory = os.open("state", flags, dir_fd=parent)
+        except FileNotFoundError:
+            if exclusive:
+                raise
+            yield None
+            return
+        try:
+            handle = os.open("sessions.jsonl",
+                             (os.O_RDWR | os.O_CREAT if exclusive else os.O_RDONLY) | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory)
+        except FileNotFoundError:
+            if exclusive:
+                raise
+            yield None
+            return
         fcntl.flock(handle, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
         yield handle
     finally:
@@ -68,6 +82,8 @@ def read_locked(handle):
 
 def events(root: Path):
     with journal(root) as handle:
+        if handle is None:
+            return []
         records, _, _ = read_locked(handle)
         return records
 

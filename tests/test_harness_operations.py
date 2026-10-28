@@ -25,6 +25,17 @@ class OperationsTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         (self.root / ".agentic-dev").mkdir()
 
+    def test_status_does_not_create_missing_journal(self):
+        from harness.session import events
+        state = self.root / ".agentic-dev/state"
+        self.assertFalse(state.exists())
+        self.assertEqual(summary(self.root)["completed_count"], 0)
+        self.assertEqual(events(self.root), [])
+        self.assertFalse(state.exists())
+        state.mkdir()
+        self.assertEqual(summary(self.root)["completed_count"], 0)
+        self.assertFalse((state / "sessions.jsonl").exists())
+
     def test_session_start_checkpoint_close_and_resume(self):
         start = apply(self.root, "start", title="Implement offline history", plan="docs/plans/history.md")
         self.assertEqual(start["active"]["title"], "Implement offline history")
