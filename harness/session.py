@@ -97,29 +97,28 @@ def summary(root: Path):
     return _summarize(events(root))
 
 
-def append(root: Path, entry: dict):
-    directory = root / STATE.parent
-    parent = root / ".agentic-dev"
-    if parent.is_symlink() or directory.is_symlink():
-        raise ValueError("Session state must not traverse symlinks")
-    if not parent.is_dir():
-        raise ValueError("Install ADE before creating session state")
-    directory.mkdir(exist_ok=True)
-    target = root / STATE
-    if target.is_symlink():
-        raise ValueError("Session file may not be a symlink")
-    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(target, flags, 0o600)
-    try:
-        data = (json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
-        os.write(fd, data)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+def append_locked(handle, entry, committed, total):
+    if total > committed:
+        os.ftruncate(handle, committed)
+    os.lseek(handle, 0, os.SEEK_END)
+    encoded = (json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    while encoded:
+        written = os.write(handle, encoded)
+        if written == 0:
+            raise OSError("Journal append failed")
+        encoded = encoded[written:]
+    os.fsync(handle)
 
 
 def apply(root: Path, action: str, *, title=None, plan=None, step=None, verdict=None):
-    state = summary(root)
+    with journal(root, exclusive=True) as handle:
+        records, committed, total = read_locked(handle)
+        state = _summarize(records)
+        return _apply_locked(handle, records, committed, total, state, action,
+                             title=title, plan=plan, step=step, verdict=verdict)
+
+
+def _apply_locked(handle, records, committed, total, state, action, *, title, plan, step, verdict):
     event = {"kind": action, "at": dt.datetime.now(dt.timezone.utc).isoformat()}
     if action == "start":
         if state["active"] is not None:
@@ -142,5 +141,5 @@ def apply(root: Path, action: str, *, title=None, plan=None, step=None, verdict=
         event["verdict"] = verdict
     else:
         raise ValueError("Unsupported session action")
-    append(root, event)
-    return summary(root)
+    append_locked(handle, event, committed, total)
+    return _summarize(records + [event])
