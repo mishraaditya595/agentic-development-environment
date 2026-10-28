@@ -252,7 +252,11 @@ def _replace_existing(root_fd: int, target: Path, path: Path, content: bytes,
     tmp_name = ".ade-" + uuid.uuid4().hex + ".tmp"
     try:
         flags = os.O_RDONLY | os.O_NOFOLLOW
-        with os.fdopen(os.open(path.name, flags, dir_fd=parent_fd), "rb") as stream:
+        read_fd = os.open(path.name, flags, dir_fd=parent_fd)
+        with os.fdopen(read_fd, "rb") as stream:
+            original = os.fstat(stream.fileno())
+            if original.st_nlink != 1:
+                raise OSError(f"{path.relative_to(target)} has hard links; refusing unsafe replacement")
             if stream.read() != old:
                 raise OSError(f"{path.relative_to(target)} changed during installation")
         fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
@@ -261,6 +265,12 @@ def _replace_existing(root_fd: int, target: Path, path: Path, content: bytes,
         created_files.append((path.with_name(tmp_name), identity.st_dev, identity.st_ino))
         with os.fdopen(fd, "wb") as stream:
             stream.write(content)
+            os.fchmod(stream.fileno(), stat.S_IMODE(original.st_mode))
+            if hasattr(os, "fchown"):
+                try:
+                    os.fchown(stream.fileno(), original.st_uid, original.st_gid)
+                except PermissionError:
+                    pass  # Unprivileged users may not chown; mode remains preserved.
         # File was verified with O_NOFOLLOW, and parent is dirfd-pinned.
         os.replace(tmp_name, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         if updated is not None:
@@ -386,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in sorted(replacements, key=lambda item: item == target / CONFIG):
             _replace_existing(root_fd, target, path, desired[path], snapshots[path],
                               created_files, created_dirs, updated_files)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         failures = _rollback(root_fd, target, created_files, created_dirs, updated_files) if root_fd is not None else []
         print(f"INSTALL FAILED: {exc}", file=sys.stderr)
         if failures:
