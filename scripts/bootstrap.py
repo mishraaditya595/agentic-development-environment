@@ -152,6 +152,10 @@ def existing_config(target, agents, skills, available):
 
 def preflight(target, desired, agents, old_config, previous, no_routing=False):
     creates, same, conflicts, replacements, snapshots = [], [], [], [], {}
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        if name == "AGENTS.md" or "claude" in agents:
+            if (target / name).is_symlink():
+                conflicts.append(target / name)
     for rel, (algo, signature) in previous.items():
         path = target / rel
         if path.is_symlink() or not path.is_file():
