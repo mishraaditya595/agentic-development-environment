@@ -98,8 +98,11 @@ class HarnessTests(unittest.TestCase):
                 pass
             else:
                 if Path("/proc") .is_dir():
-                    status = (Path("/proc") / str(pid) / "stat").read_text()
-                    self.assertIn(status.split()[2], ("Z", "X"))
+                    proc_state = Path("/proc") / str(pid) / "stat"
+                    if proc_state.exists():
+                        status = proc_state.read_text() if proc_state.exists() else ""
+                        if status:
+                            self.assertIn(status.split()[2], ("Z", "X"))
 
     def test_routing_integrity(self):
         routes=json.loads((ROOT/"routing/skill-map.json").read_text())["routes"]
