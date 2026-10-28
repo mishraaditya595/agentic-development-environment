@@ -105,6 +105,18 @@ class HookTests(unittest.TestCase):
                         self.assertEqual(outcome.returncode,0,(name,event,outcome.stderr))
                 self.assertEqual(run(INSTALLER,project,"--agents","claude,codex","--local").returncode,0)
 
+    def test_oversized_input_still_injects_routing(self):
+        target=self.root/"large"
+        target.mkdir()
+        self.assertEqual(run(BOOTSTRAP,target,"--preset","minimal").returncode,0)
+        runner=target/".agentic-dev/bin/ade-hook.py"
+        result=subprocess.run([sys.executable,str(runner),"prompt"],input="x"*70000,
+                              capture_output=True,text=True,cwd=target)
+        self.assertEqual(result.returncode,0,result.stderr)
+        payload=json.loads(result.stdout)
+        self.assertIn("additionalContext",payload["hookSpecificOutput"])
+        self.assertNotIn("systemMessage",payload)
+
     def test_missing_hook_script_never_blocks_prompt(self):
         import os
         with tempfile.TemporaryDirectory() as directory:
