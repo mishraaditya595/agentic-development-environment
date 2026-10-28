@@ -63,6 +63,19 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
         for source in sorted((ROOT / category).rglob("*")):
             if source.is_file():
                 out[target / ".agentic-dev" / category / source.relative_to(ROOT / category)] = source.read_bytes()
+    # Bundle only selected routing entries; standalone skill installs remain independent.
+    catalog = json.loads((ROOT / "routing/skill-map.json").read_text(encoding="utf-8"))
+    routes = []
+    for route in catalog["routes"]:
+        if route["primary"] in skills:
+            routes.append({**route, "supporting": [s for s in route["supporting"] if s in skills]})
+    out[target / ".agentic-dev/skill-map.json"] = (json.dumps(
+        {"schema_version": 1, "routes": routes}, indent=2) + "\n").encode("utf-8")
+    out[target / ".agentic-dev/harness.json"] = (json.dumps(
+        {"schema_version": 1, "checks": {}}, indent=2) + "\n").encode("utf-8")
+    out[target / ".agentic-dev/bin/ade-harness.py"] = (ROOT / "scripts/ade-harness.py").read_bytes()
+    out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
+    out[target / ".agentic-dev/bin/harness/__init__.py"] = (ROOT / "harness/__init__.py").read_bytes()
     for destination in sorted({AGENT_DESTINATIONS[agent] for agent in agents}):
         for skill in skills:
             folder = SKILL_ROOT / skill

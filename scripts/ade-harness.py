@@ -3,7 +3,8 @@
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+here = Path(__file__).resolve()
+sys.path.insert(0, str(here.parent if (here.parent / "harness").is_dir() else here.parents[1]))
 from harness.core import main
 
 if __name__ == "__main__":

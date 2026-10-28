@@ -18,3 +18,9 @@ Document your actual architecture, build/test commands, code-generation instruct
 ## Safety and verification
 
 Preserve user changes and follow the repository's stricter existing policies. Report real check outcomes. Creating a pull request is not merging it; merging, deploying and production data changes require explicit human authorization.
+
+## ADE skill routing
+
+Before starting a development task, consult `.agentic-dev/skill-map.json` if installed. Pick **one primary installed skill** whose task and examples fit the user's request; supporting skills are optional. Do not invent absent skills. Respect negative examples. Native agent activation is probabilistic, so explicitly load a relevant skill when supported; a mapping file does not automatically intercept every prompt.
+
+Verification tools: `python3 .agentic-dev/bin/ade-harness.py doctor` and `check` when installed. Configure `.agentic-dev/harness.json` with real project commands before claiming checks are wired. Never claim a missing check passed.
