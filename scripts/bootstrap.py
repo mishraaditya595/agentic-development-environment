@@ -329,6 +329,30 @@ def _rollback(root_fd: int, target: Path, files: list[tuple[Path, int, int]],
     return failures
 
 
+def install_new_assets(target, assets, *, dry_run=False):
+    """Public, create-only adapter for installing optional project configuration."""
+    create, same, conflicts, replacements, _ = preflight(target, assets, [], None, {})
+    if conflicts or replacements:
+        raise ValueError("Destination conflicts: " +
+                         ", ".join(str(p.relative_to(target)) for p in conflicts + replacements))
+    if dry_run:
+        return create, same
+    root_fd = None
+    made_files, made_dirs = [], []
+    try:
+        root_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        for path in create:
+            _write_new(root_fd, target, path, assets[path], made_files, made_dirs)
+    except OSError:
+        if root_fd is not None:
+            _rollback(root_fd, target, made_files, made_dirs, [])
+        raise
+    finally:
+        if root_fd is not None:
+            os.close(root_fd)
+    return create, same
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default=".", help="Existing project directory (default: current directory)")
