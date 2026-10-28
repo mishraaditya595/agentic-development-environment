@@ -173,32 +173,6 @@
       "exclude": [
         "Make a tiny single-file change"
       ]
-    },
-    {
-      "id": "harness-diagnostics",
-      "primary": "harness-doctor",
-      "supporting": [],
-      "triggers": [
-        "Is ADE installed correctly?",
-        "Diagnose missing harness checks"
-      ],
-      "exclude": [
-        "Build a feature"
-      ]
-    },
-    {
-      "id": "harness-verification",
-      "primary": "harness-verify",
-      "supporting": [
-        "proof-before-done"
-      ],
-      "triggers": [
-        "Verify this implementation before reporting done",
-        "Show test evidence and check remaining acceptance criteria"
-      ],
-      "exclude": [
-        "Plan a feature without code"
-      ]
     }
   ]
 }
