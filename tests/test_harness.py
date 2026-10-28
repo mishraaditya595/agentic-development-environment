@@ -100,7 +100,10 @@ class HarnessTests(unittest.TestCase):
                 if Path("/proc") .is_dir():
                     proc_state = Path("/proc") / str(pid) / "stat"
                     if proc_state.exists():
-                        status = proc_state.read_text() if proc_state.exists() else ""
+                        try:
+                            status = proc_state.read_text()
+                        except OSError:
+                            status = ""  # Child already reaped between observations
                         if status:
                             self.assertIn(status.split()[2], ("Z", "X"))
 
