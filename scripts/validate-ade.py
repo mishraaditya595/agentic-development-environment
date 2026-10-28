@@ -2,6 +2,7 @@
 """Validate ADE shared assets and the canonical skill catalog (stdlib only)."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -37,6 +38,23 @@ def validate(root: Path) -> list[str]:
     for name in REQUIRED_WORKFLOWS:
         if not (root / "workflows" / name).is_file():
             errors.append(f"Missing workflow: {name}")
+    try:
+        routes = json.loads((root / "routing/skill-map.json").read_text(encoding="utf-8"))
+        if routes.get("schema_version") != 1 or not isinstance(routes.get("routes"), list):
+            errors.append("Invalid routing catalog")
+        else:
+            seen = set()
+            for route in routes["routes"]:
+                if route["id"] in seen:
+                    errors.append("Duplicate route: " + route["id"])
+                seen.add(route["id"])
+                for name in [route["primary"]] + route["supporting"]:
+                    if name not in names:
+                        errors.append("Route references missing skill: " + name)
+                if not route.get("triggers") or not route.get("exclude"):
+                    errors.append("Route missing positive/negative examples: " + route["id"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        errors.append("Routing validation failed: " + str(exc))
     return errors
 
 

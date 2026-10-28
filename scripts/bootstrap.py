@@ -26,6 +26,7 @@ PRESETS = {
         "repo-onboarding", "plan-creator", "plan-implementer",
         "evidence-based-code-review", "merge-conflict-resolver", "test-engineer",
         "feature-delivery", "root-cause-investigation", "proof-before-done",
+        "harness-doctor", "harness-verify",
     ),
 }
 AGENT_DESTINATIONS = {
@@ -71,7 +72,8 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
             routes.append({**route, "supporting": [s for s in route["supporting"] if s in skills]})
     out[target / ".agentic-dev/skill-map.json"] = (json.dumps(
         {"schema_version": 1, "routes": routes}, indent=2) + "\n").encode("utf-8")
-    out[target / ".agentic-dev/harness.json"] = (json.dumps(
+    if not (target / ".agentic-dev/harness.json").exists():
+        out[target / ".agentic-dev/harness.json"] = (json.dumps(
         {"schema_version": 1, "checks": {}}, indent=2) + "\n").encode("utf-8")
     out[target / ".agentic-dev/bin/ade-harness.py"] = (ROOT / "scripts/ade-harness.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
