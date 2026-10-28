@@ -73,6 +73,9 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
     out[target / ".agentic-dev/bin/ade-harness.py"] = (ROOT / "scripts/ade-harness.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/__init__.py"] = (ROOT / "harness/__init__.py").read_bytes()
+    out[target / ".agentic-dev/bin/harness/policy.py"] = (ROOT / "harness/policy.py").read_bytes()
+    if not (target / ".agentic-dev/invariants.json").exists():
+        out[target / ".agentic-dev/invariants.json"] = (json.dumps({"schema_version":1, "rules":[]}, indent=2) + "\n").encode("utf-8")
     for destination in sorted({AGENT_DESTINATIONS[agent] for agent in agents}):
         for skill in skills:
             folder = SKILL_ROOT / skill

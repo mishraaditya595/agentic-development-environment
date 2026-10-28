@@ -23,6 +23,8 @@ VALID_NAMES = frozenset(("fast", "full", "integration", "smoke", "lint", "typech
 ALLOWED_STATUSES = ("pass", "fail", "blocked", "skipped")
 MAX_TIMEOUT = 1800
 
+from harness.policy import audit as policy_audit
+
 
 def report_entry(name: str, status: str, *, command=None, returncode=None, duration_ms=None, detail=""):
     assert status in ALLOWED_STATUSES
@@ -147,7 +149,14 @@ def command(args):
     root = Path(args.target).resolve()
     if not root.is_dir():
         raise ValueError("Target directory does not exist")
-    if args.operation == "doctor":
+    if args.operation == "audit":
+        try:
+            config = config_for(root)
+        except (ValueError, OSError, json.JSONDecodeError):
+            config = None
+        outcome = policy_audit(root, config)
+        status = 0 if not outcome["issues"] and outcome["level"] == "instrumented" else 2
+    elif args.operation == "doctor":
         outcome = doctor(root)
         status = 0 if not outcome["issues"] else 2
     elif args.operation == "check":
@@ -179,6 +188,7 @@ def main(argv=None):
     parser.add_argument("--evidence", help="New path within .agentic-dev/evidence/ (opt-in)")
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("doctor")
+    sub.add_parser("audit")
     for name in ("check","verify"):
         p=sub.add_parser(name)
         p.add_argument("--check",action="append",default=[])

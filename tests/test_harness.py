@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from harness.core import config_for, gather_checks, doctor, proof, write_evidence
+from harness.policy import audit
 
 class HarnessTests(unittest.TestCase):
     def setUp(self):
@@ -53,6 +54,17 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(write_evidence(self.root,{"a":1},path),str(path))
         with self.assertRaises(ValueError): write_evidence(self.root,{"a":1},path)
         with self.assertRaises(ValueError): write_evidence(self.root,{"a":1},Path("AGENTS.md"))
+
+    def test_invariants_cannot_claim_enforcement_without_checks(self):
+        self.configure({})
+        (self.root / ".agentic-dev/invariants.json").write_text(json.dumps({
+            "schema_version":1,
+            "rules":[{"id":"database-safety","severity":"critical","enforced_by":"check:full"}]
+        }))
+        result = audit(self.root, config_for(self.root))
+        self.assertEqual(result["level"], "configured")
+        self.assertTrue(result["issues"])
+        self.assertEqual(result["invariants"][0]["verification_status"], "not-run")
 
     def test_routing_integrity(self):
         routes=json.loads((ROOT/"routing/skill-map.json").read_text())["routes"]
