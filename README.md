@@ -1,92 +1,110 @@
-# Agentic Development Environment
+# Agentic Development Environment (ADE)
 
-An open-source collection of reusable agent skills and runtime integrations for AI-assisted development.
+**Portable, evidence-driven development skills for AI coding agents.** Build features, investigate bugs, review changes and prepare pull requests consistently—while keeping final merge and production deployment under human control.
 
-The repository publishes a growing catalog of original, repository-aware skills for AI-assisted software development. The first package is **Evidence-Based Code Review**, and the catalog is expanding with debugging, verification, testing, planning, review-feedback, agent coordination, and branch closeout workflows.
+ADE provides independently installable [Agent Skills](https://agentskills.io) and optional project-local workflows, rules and output templates. It aims to work across Codex, Claude Code and OpenCode without a proprietary AI router. Native skill selection based on descriptions is **model-dependent**, not guaranteed.
 
-It helps an AI reviewer establish the exact review scope, discover repository conventions, run available checks, inspect surrounding code, and report only evidence-backed findings. It is designed for pull requests, branches, commit ranges, uncommitted work, patches, and local folders.
+## Get started: install one skill
 
-## What is included
+From your existing project:
 
-### Evidence-Based Code Review
+    npx skills add mishraaditya595/agentic-development-environment --skill evidence-based-code-review
 
-The first published skill helps an AI reviewer:
+Or install an implementation skill:
 
-- **Establish the exact scope** — review pull requests, branches, commit ranges, patches, uncommitted changes, or local folders.
-- **Follow the repository** — discover its instructions, conventions, checks, tests, and existing abstractions instead of assuming a stack.
-- **Route the right review lenses** — assess correctness, requirements, security, compatibility, data, tests, performance, architecture, maintainability, and UI quality when relevant.
-- **Report evidence-backed findings** — separate blockers, recommendations, questions, and unverified areas.
-- **Stay safe by default** — review-only mode does not edit, commit, push, merge, comment on remote systems, or publish results.
-- **Support explicit fixing** — review-and-fix mode is separate from ordinary review and keeps the change bounded.
+    npx skills add mishraaditya595/agentic-development-environment --skill plan-implementer
 
-## Install
+Every package is self-contained. It does not require installing ADE as a whole. Other publicly indexed skills can be found on [skills.sh](https://skills.sh/); listing is not guaranteed merely by publishing a repository.
 
-Install from a local checkout:
+## Get started: install full ADE guidance
 
-```bash
-npx skills add ./ --skill evidence-based-code-review
-```
+The project-local installer is **implemented in Python 3.9+** for POSIX filesystem runtimes (Linux/macOS); a proposed npx agentic-dev CLI is **not published or available**.
 
-Install after publishing the repository:
+In an ADE checkout:
 
-```bash
-npx skills add <owner>/<repository> --skill evidence-based-code-review
-```
+    python3 scripts/bootstrap.py --target /path/to/your-project --agents codex,claude,opencode --preset standard --dry-run
+    python3 scripts/bootstrap.py --target /path/to/your-project --agents codex,claude,opencode --preset standard
 
-## Quick start
+This installs selected skills, workflow/rule/template references and agent instructions where absent. No scripts are executed in the target repo; no network is required during installation. Conflicting files are refused during preflight without changing anything. Write failures trigger rollback of newly created files and a nonzero exit. Existing AGENTS.md / CLAUDE.md are preserved, while symlinked instructions are refused. Re-running with additional `--agents` or `--skills` safely expands untouched installations; the config inventory is updated last. See [detailed installation and usage](docs/usage.md).
 
-Try prompts like:
+## What developers actually do
 
-```text
-Review my uncommitted changes and tell me whether they are ready to merge.
-```
+After installation, open the repository in a supported coding agent and ask naturally:
 
-```text
-Review PR #42 for security, compatibility, and missing tests.
-```
+> Review my current branch against main for regressions and missing tests. Do not edit files.
 
-```text
-Review this commit range against the repository’s own conventions. Do not change files.
-```
+> Plan an additive database migration with acceptance criteria. No code yet.
 
-## Catalog
+> Implement the approved plan, run appropriate tests and report any unverified criteria.
 
-Every canonical package lives below `skills/<skill-name>/`, with `SKILL.md` as its portable runtime entrypoint. Current packages include:
+> Implement session history end to end, review it and open a PR for me. Do not merge.
 
-- `evidence-based-code-review` — evidence-backed change review.
-- `root-cause-investigation` — systematic debugging with evidence checkpoints.
-- `proof-before-done` — claim-to-evidence completion verification.
-- `behavior-first-engineering` — repository-aware test-first implementation.
-- `intent-to-implementation` — proportional discovery and design selection.
-- `review-feedback-triage` — technically grounded review feedback handling.
-- `coordinated-agent-delivery` — bounded multi-agent task coordination.
-- `branch-closeout` — safe, evidence-based implementation closeout.
+Agents can choose skills through native discovery; explicitly name a skill if auto-selection misses it. Full lifecycle requests use the portable feature-delivery skill. The agent reads applicable rules/workflows/templates if they were installed and included in project instructions. **No Markdown document enforces a merge gate by itself**—use branch protection and required CI.
 
-These are original packages informed by useful industry workflows; they are not direct copies of another repository's skills.
+## Skill catalog
 
-## Repository layout
+| Skill | Purpose |
+| --- | --- |
+| [evidence-based-code-review](skills/evidence-based-code-review/) | Read-only, evidence-backed diff/PR review |
+| [repo-onboarding](skills/repo-onboarding/) | Map unfamiliar repositories and actual toolchain |
+| [plan-creator](skills/plan-creator/) | Produce implementation-ready plans |
+| [plan-implementer](skills/plan-implementer/) | Execute approved plans and report evidence |
+| [merge-conflict-resolver](skills/merge-conflict-resolver/) | Resolve conflicts while preserving both sides |
+| [test-engineer](skills/test-engineer/) | Design/write behavioral and regression tests |
+| [feature-delivery](skills/feature-delivery/) | Orchestrate scoped plan → implementation → verification → review → PR handoff |
+| [root-cause-investigation](skills/root-cause-investigation/) | Investigate failures and underlying causes |
+| [proof-before-done](skills/proof-before-done/) | Confirm claims against actual evidence |
+| [behavior-first-engineering](skills/behavior-first-engineering/) | Behavior-driven implementation where useful |
+| [intent-to-implementation](skills/intent-to-implementation/) | Resolve meaningful design ambiguity proportionally |
+| [review-feedback-triage](skills/review-feedback-triage/) | Verify and prioritize reviewer feedback |
+| [coordinated-agent-delivery](skills/coordinated-agent-delivery/) | Coordinate bounded independent parallel work |
+| [branch-closeout](skills/branch-closeout/) | Safe completion and handoff checks |
 
-```text
-skills/
-  evidence-based-code-review/
-    SKILL.md
-    references/
-    evals/
-    README.md
-plugins/
-  claude-code/<plugin-name>/
-  codex/<plugin-name>/
-  other/<runtime-name>/<plugin-name>/
-docs/
-  architecture/
-  authoring/
-research_notes/
-reports/
-```
+The canonical review skill retains its stable published name (evidence-based-code-review); no duplicate code-reviewer package is introduced.
 
-See [`docs/architecture/repository-layout.md`](docs/architecture/repository-layout.md) for the complete directory contract.
+## Repository layers
 
-Runtime-specific integrations are documented separately in [`docs/architecture/plugin-contract.md`](docs/architecture/plugin-contract.md), with namespace guidance for [Claude Code](plugins/claude-code/README.md), [Codex](plugins/codex/README.md), and [other runtimes](plugins/other/README.md).
+| Folder | Responsibility |
+| --- | --- |
+| skills/ | Independent, publishable Agent Skills packages |
+| workflows/ | Feature, bugfix, PR-review, remediation, refactoring, release-readiness process guidance |
+| rules/ | Engineering, testing, security, git, architecture, documentation and agent autonomy standards |
+| templates/ | Implementation plan, review, PR, handoff and project instructions |
+| scripts/ | Offline installer and package validation |
+| tests/ | Bootstrap tests and manual skill-routing evaluation probes |
+| plugins/ | Reserved for documented native runtime adapters |
+| docs/ | Usage, architecture and contributor guidance |
+| research_notes/ and reports/ | Historical design research; not installable skills |
+
+Portable skills do **not** depend on root-level ADE resources. The shared folders support the optional project-local bundle.
+
+## Validate changes
+
+With Python 3.9+ installed:
+
+    sh scripts/validate-skills.sh
+    python3 scripts/validate-ade.py
+    python3 -m unittest discover -s tests -v
+
+When Node and network access are available, also confirm CLI discovery:
+
+    npx skills add ./ --list
+
+The GitHub Actions workflow runs static checks and bootstrap tests on PRs. Real Claude, Codex and OpenCode skill activation must be evaluated separately using [routing probes](tests/skill-routing/README.md).
+
+## Documentation
+
+- [How to install and use ADE](docs/usage.md)
+- [Installation/discovery architecture](docs/architecture/installation-design.md)
+- [Authoring and trigger descriptions](docs/authoring/skill-routing.md)
+- [Repository package contract](docs/architecture/repository-layout.md)
+- [Skill package validation](docs/authoring/skill-package.md)
+- [Concepts evaluated from Test Double Han](docs/architecture/han-principles.md)
+- [Runtime plugin contract](docs/architecture/plugin-contract.md)
+
+## Principles and limitations
+
+Keep reviews read-only unless asked to fix. Make tests and findings evidence-based; report blocked verification as blocked. Never infer PR permission implies permission to merge. Respect existing project instructions and avoid overwriting them during installation. The current bootstrap supports local copy/install and conflict refusal, but no automatic upgrade, uninstall, published CLI or deterministic skill router.
 
 ## License
 

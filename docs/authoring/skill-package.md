@@ -38,11 +38,19 @@ From the repository root, run:
 ./scripts/validate-skills.sh
 ```
 
-The validator checks every `skills/*/SKILL.md` for the required frontmatter
-and verifies relative Markdown links point to existing package files. It uses
-only portable shell and standard macOS tools and exits nonzero when a rule
-fails. When available, also inspect the catalog with:
+The shell entrypoint delegates to `scripts/skill_validation.py`, the single Python 3.9+ stdlib validator also imported by `validate-ade.py`. It checks required frontmatter, canonical names/licenses, local Markdown links and evaluation prompts for **every** skill, without special-case exceptions. It exits nonzero when a rule fails. When available, also inspect the catalog with:
 
 ```sh
 npx skills add ./ --list
 ```
+
+## Cross-agent routing and package boundaries
+
+See [skill routing](skill-routing.md) for descriptions, positive/non-trigger evals, and the distinction between native discovery and deterministic enforcement. New standalone skills must contain their own necessary references; do not depend on shared workflows/, rules/ or templates/ in the root checkout.
+
+For changes involving installer or shared documents, also run:
+
+    python3 scripts/validate-ade.py
+    python3 -m unittest discover -s tests -v
+
+The bootstrap requires Python 3.9+ with POSIX secure directory-descriptor support. It checks all destination conflicts before writing, refuses symlinks, and attempts to remove new files and empty directories if a write fails.
