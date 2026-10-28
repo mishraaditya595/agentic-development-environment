@@ -1,5 +1,6 @@
 """Regression tests for explicit work state, workspace gating and sensor proofs."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
 import tempfile
@@ -91,6 +92,18 @@ class OperationsTests(unittest.TestCase):
         registry_file["sensors"][0]["argv"]=[sys.executable,"-c","print('always passing')","{path}"]
         save(self.root / ".agentic-dev/sensors.json", registry_file)
         self.assertEqual(prove(self.root)["verdict"], "incomplete")
+
+    def test_simultaneous_session_starts_are_serialized(self):
+        def start(_):
+            try:
+                apply(self.root, "start", title="Concurrent")
+                return "started"
+            except ValueError:
+                return "already active"
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            statuses = list(executor.map(start, range(2)))
+        self.assertEqual(sorted(statuses), ["already active", "started"])
+        self.assertEqual(summary(self.root)["active"]["title"], "Concurrent")
 
     def test_truncated_journal_recovers_on_next_write(self):
         from harness.session import events
