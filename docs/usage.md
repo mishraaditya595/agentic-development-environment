@@ -87,3 +87,7 @@ Critical gates (required tests, protected branches) belong in actual CI and perm
 If a skill is not discovered, inspect the generated path and SKILL.md frontmatter, restart the agent, and check runtime permissions. If a wrong skill is selected, explicitly name the intended one and record the misroute in routing evaluations. For install conflicts, review existing files manually; the bootstrap never overwrites them. If existing instructions ignore ADE, add references to .agentic-dev/ and confirm the runtime reads them.
 
 Individual installations made through the skills CLI may contribute to skills.sh discovery. Local Python copies do not necessarily affect that directory's ranking.
+
+## Initial harness integration
+
+The full installer adds a filtered `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It does not modify existing AGENTS.md; link the routing map manually when one already exists. See [the harness foundation](harness-foundation.md) for configuration and commands.

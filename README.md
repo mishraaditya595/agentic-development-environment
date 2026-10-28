@@ -109,3 +109,7 @@ Keep reviews read-only unless asked to fix. Make tests and findings evidence-bas
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+## Harness Foundation
+
+ADE now provides an initial executable, project-configured verification layer alongside portable skills. It installs a filtered task-to-skill routing map, runs explicit project checks with truthful pass/fail/blocked outcomes, and can produce JSON evidence. Existing instructions remain preserved; full runtime hooks and automatic routing are future work. Read [the harness guide](docs/harness-foundation.md).
