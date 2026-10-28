@@ -237,6 +237,31 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
             self.assertEqual((t / "AGENTS.md").read_text(), updated)
 
+    def test_existing_agents_routing_restored_if_inventory_update_fails(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            instructions = t / "AGENTS.md"
+            # Simulate an older local project that has instructions but no ADE section.
+            instructions.write_text("ORIGINAL PROJECT RULE\\n")
+            before = instructions.read_bytes()
+            old_config = (t / ".agentic-dev/config.json").read_bytes()
+            original_replace = bootstrap.os.replace
+            calls = [0]
+
+            def fail_second_replace(*args, **kwargs):
+                calls[0] += 1
+                if calls[0] == 2:
+                    raise OSError("injected inventory replace error")
+                return original_replace(*args, **kwargs)
+
+            with mock.patch.object(bootstrap.os, "replace", side_effect=fail_second_replace), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+                result = bootstrap.main(["--target", str(t), "--agents", "codex,claude", "--preset", "minimal"])
+            self.assertEqual(result, 1)
+            self.assertEqual(instructions.read_bytes(), before)
+            self.assertEqual((t / ".agentic-dev/config.json").read_bytes(), old_config)
+            self.assertFalse((t / ".claude").exists())
+
     def test_unknown_skill_is_invalid(self):
         with tempfile.TemporaryDirectory() as p:
             result = run(Path(p), "--skills", "made-up-skill")

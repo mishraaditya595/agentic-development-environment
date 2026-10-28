@@ -112,4 +112,4 @@ Apache-2.0. See [LICENSE](LICENSE).
 
 ## Harness Foundation
 
-ADE now provides an initial executable, project-configured verification layer alongside portable skills. It installs a canonical task-to-skill routing map, runs explicit project checks with truthful pass/fail/blocked outcomes, and can produce JSON evidence. Existing instructions remain preserved; full runtime hooks and automatic routing are future work. Read [the harness guide](docs/harness-foundation.md).
+ADE now provides an initial executable, project-configured verification layer alongside portable skills. It installs a canonical task-to-skill routing map, runs explicit project checks with truthful pass/fail/blocked outcomes, and can produce JSON evidence. Existing AGENTS.md content outside ADE's managed routing section remains preserved; CLAUDE.md is not overwritten. Native hooks and deterministic prompt routing remain future work. Read [the harness guide](docs/harness-foundation.md).

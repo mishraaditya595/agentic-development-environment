@@ -90,4 +90,4 @@ Individual installations made through the skills CLI may contribute to skills.sh
 
 ## Initial harness integration
 
-The full installer adds a filtered `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It does not modify existing AGENTS.md; link the routing map manually when one already exists. See [the harness foundation](harness-foundation.md) for configuration and commands.
+The full installer adds a filtered `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It appends a checked, managed routing section to existing AGENTS.md while preserving unrelated text. Existing CLAUDE.md is unchanged. See [the harness foundation](harness-foundation.md) for configuration and commands.

@@ -37,6 +37,6 @@
 - Standalone skill packages MUST NOT import root-level workflows/rules/templates, since a skills.sh/skills CLI installation may include only one package.
 - The feature-delivery SKILL.md is a portable workflow entrypoint. Canonical PR-review skill is evidence-based-code-review; do not add an overlapping code-reviewer alias.
 - Read docs/usage.md, docs/architecture/installation-design.md and docs/authoring/skill-routing.md before changing cross-agent installation or skill routing.
-- Existing project AGENTS.md and CLAUDE.md must never be overwritten by the installer. Use dry-run and preflight conflicts to prevent partial writes. A PR may be created only when authorized. **NEVER merge, deploy, force-push, or delete protected branches without explicit human approval.**
+- Existing project instructions must not be replaced: AGENTS.md may receive only a validated, marker-delimited ADE routing section; CLAUDE.md must remain unchanged. Use dry-run and preflight conflicts to prevent partial writes. A PR may be created only when authorized. **NEVER merge, deploy, force-push, or delete protected branches without explicit human approval.**
 - For changes to the installer, execute scripts/validate-skills.sh, scripts/validate-ade.py and Python unittest discovery; disclose if those commands cannot be executed.
 - Han-inspired design principles are documented in docs/architecture/han-principles.md; use original skill wording and avoid importing Han runtime assumptions or copying source text.

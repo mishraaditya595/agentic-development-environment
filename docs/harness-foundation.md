@@ -42,6 +42,6 @@ An explicit failure probe may be invoked with `prove-failure --check-name full -
 
 ## Not yet implemented
 
-Managed edits to existing AGENTS.md, runtime-specific lifecycle hooks, CI installation into consumer projects, isolated worktree red/green gate proofs, session restoration, invariant sensors and automatic correction loops, workspace coordination, and scored harness audits. These need dedicated tested additions; do not claim they already work.
+Runtime-specific lifecycle hooks, CI installation into consumer projects, isolated worktree red/green gate proofs, session restoration, invariant sensors and automatic correction loops, workspace coordination, and scored harness audits. These need dedicated tested additions; do not claim they already work.
 
 Human authorization remains required to merge, deploy, force push or modify production data.
