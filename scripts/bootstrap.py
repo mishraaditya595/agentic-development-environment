@@ -350,6 +350,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         agents, skills, old_config, previous = existing_config(target, agents, skills, available)
         desired, notes = gather(target, agents, skills)
+        if args.no_agents_routing and not (target / "AGENTS.md").exists():
+            from harness.routing import START, END
+            body = desired[target / "AGENTS.md"].decode("utf-8")
+            first, last = body.find(START), body.find(END)
+            if first >= 0 and last > first:
+                body = body[:first].rstrip() + "\n"
+                desired[target / "AGENTS.md"] = body.encode("utf-8")
         if args.no_agents_routing and (target / "AGENTS.md").is_file():
             desired[target / "AGENTS.md"] = (target / "AGENTS.md").read_bytes()
         for relative in (".agentic-dev/harness.json", ".agentic-dev/invariants.json"):

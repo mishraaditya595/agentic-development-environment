@@ -345,6 +345,23 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue(config["files"])
             self.assertEqual(run(project, "--agents", "codex,claude", "--preset", "minimal").returncode, 0)
 
+    def test_deleted_user_owned_check_config_can_be_recreated(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            self.assertEqual(run(target, "--preset", "minimal").returncode, 0)
+            checks = target / ".agentic-dev/harness.json"
+            checks.unlink()
+            repeat = run(target, "--preset", "minimal")
+            self.assertEqual(repeat.returncode, 0, repeat.stderr)
+            self.assertEqual(json.loads(checks.read_text())["checks"], {})
+
+    def test_routing_opt_out_on_new_install(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            result = run(target, "--preset", "minimal", "--no-agents-routing")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("ADE ROUTING START", (target / "AGENTS.md").read_text())
+
     def test_unknown_skill_is_invalid(self):
         with tempfile.TemporaryDirectory() as p:
             result = run(Path(p), "--skills", "made-up-skill")

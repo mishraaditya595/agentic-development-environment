@@ -49,11 +49,11 @@ Install by re-running without --dry-run. Prefer a pinned release or commit for r
 | .agentic-dev/workflows/ | Shared stage ordering and failure recovery |
 | .agentic-dev/rules/ | Reference engineering policies |
 | .agentic-dev/templates/ | Plan, PR, review and handoff document structures |
-| .agentic-dev/config.json | Canonical additive selection inventory, **not** a version-lock file |
-| AGENTS.md | Project instructions if no existing file |
+| .agentic-dev/config.json | Versioned additive selection and managed-file hash manifest |
+| AGENTS.md | New file or a tightly scoped, opt-out-capable routing block in an existing file |
 | CLAUDE.md | Claude instructions if no existing file; imports AGENTS.md |
 
-**Existing AGENTS.md receives an opt-out-capable ADE managed section; unrelated instructions and existing CLAUDE.md remain unchanged.** If either already exists, manually link appropriate .agentic-dev guidance into your existing instructions. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical. Non-directory parent paths, modified managed files, symlinks (including dangling instructions), and invalid inventory files cause a preflight conflict before writing. Exclusive file creation with directory descriptors closes destination and parent symlink races. Write failures trigger best-effort rollback of files and empty directories created by the current run; original files are not deleted.
+**Existing AGENTS.md receives an opt-out-capable ADE managed section; unrelated instructions and existing CLAUDE.md remain unchanged.** The managed AGENTS.md section links ADE guidance automatically unless routing is opted out. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical. Non-directory parent paths, modified managed files, symlinks (including dangling instructions), and invalid inventory files cause a preflight conflict before writing. Exclusive file creation with directory descriptors closes destination and parent symlink races. Write failures trigger best-effort rollback of files and empty directories created by the current run; original files are not deleted.
 
 ### Adding agents and skills after installation
 
@@ -90,7 +90,7 @@ Individual installations made through the skills CLI may contribute to skills.sh
 
 ## Initial harness integration
 
-The full installer adds a filtered `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It appends a checked, managed routing section to existing AGENTS.md while preserving unrelated text. Existing CLAUDE.md is unchanged. See [the harness foundation](harness-foundation.md) for configuration and commands.
+The full installer adds the canonical `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It appends a checked, managed routing section to existing AGENTS.md while preserving unrelated text. Existing CLAUDE.md is unchanged. See [the harness foundation](harness-foundation.md) for configuration and commands.
 
 ### Safe upgrades and routing opt-out
 
