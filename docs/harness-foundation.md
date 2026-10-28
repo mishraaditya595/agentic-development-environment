@@ -11,7 +11,7 @@ python3 scripts/bootstrap.py --target /path/to/project --agents codex,claude,ope
 python3 scripts/bootstrap.py --target /path/to/project --agents codex,claude,opencode --preset standard
 ```
 
-The installer copies a filtered `.agentic-dev/skill-map.json` (primary and supporting skills present in the selected preset), an initially empty `.agentic-dev/harness.json`, and `.agentic-dev/bin/ade-harness.py` with its Python module.
+The installer copies a canonical `.agentic-dev/skill-map.json` (skill entries whose primary skill must be installed before invocation), an initially empty `.agentic-dev/harness.json`, and `.agentic-dev/bin/ade-harness.py` with its Python module.
 
 Existing AGENTS.md and CLAUDE.md files are still preserved. If the project already has them, add a pointer manually: `For development tasks, consult .agentic-dev/skill-map.json and choose the matching installed primary skill.` The generated AGENTS.md in a new project includes the pointer. Native skill selection is model-dependent.
 

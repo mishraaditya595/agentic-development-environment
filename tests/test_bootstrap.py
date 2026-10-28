@@ -193,10 +193,12 @@ class BootstrapTests(unittest.TestCase):
             outside.write_text("untouched")
             actual = bootstrap._write_new
             injected = [False]
+            injected_path = [None]
 
             def raced(root_fd, target, path, content, created_files, created_dirs):
                 if not injected[0]:
                     injected[0] = True
+                    injected_path[0] = path
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.symlink_to(outside)
                 return actual(root_fd, target, path, content, created_files, created_dirs)
@@ -205,7 +207,7 @@ class BootstrapTests(unittest.TestCase):
                 result = bootstrap.main(["--target", str(t), "--preset", "minimal"])
             self.assertEqual(result, 1)
             self.assertEqual(outside.read_text(), "untouched")
-            self.assertTrue((t / ".agentic-dev/config.json").is_symlink())  # attacker-owned link is preserved
+            self.assertTrue(injected_path[0].is_symlink())  # attacker-owned link is preserved
             self.assertFalse((t / ".agents").exists())
 
     def test_unknown_skill_is_invalid(self):

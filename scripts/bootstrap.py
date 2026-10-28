@@ -64,14 +64,9 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
         for source in sorted((ROOT / category).rglob("*")):
             if source.is_file():
                 out[target / ".agentic-dev" / category / source.relative_to(ROOT / category)] = source.read_bytes()
-    # Bundle only selected routing entries; standalone skill installs remain independent.
-    catalog = json.loads((ROOT / "routing/skill-map.json").read_text(encoding="utf-8"))
-    routes = []
-    for route in catalog["routes"]:
-        if route["primary"] in skills:
-            routes.append({**route, "supporting": [s for s in route["supporting"] if s in skills]})
-    out[target / ".agentic-dev/skill-map.json"] = (json.dumps(
-        {"schema_version": 1, "routes": routes}, indent=2) + "\n").encode("utf-8")
+    # A stable catalog survives additive skill installs without unsafe file rewrites.
+    # Agents must only invoke entries whose primary skill is actually installed.
+    out[target / ".agentic-dev/skill-map.json"] = (ROOT / "routing/skill-map.json").read_bytes()
     if not (target / ".agentic-dev/harness.json").exists():
         out[target / ".agentic-dev/harness.json"] = (json.dumps(
         {"schema_version": 1, "checks": {}}, indent=2) + "\n").encode("utf-8")
