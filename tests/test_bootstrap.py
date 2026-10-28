@@ -311,6 +311,16 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(ignore.read_text(), "local-only/\n")
 
+    def test_symlinked_sensor_config_aborts_install(self):
+        with tempfile.TemporaryDirectory() as p:
+            target = Path(p)
+            folder = target / ".agentic-dev"
+            folder.mkdir()
+            (folder / "sensors.json").symlink_to(target / "missing.json")
+            result = run(target, "--preset", "minimal")
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse((target / ".agents").exists())
+
     def test_sensors_config_is_user_owned_after_install(self):
         with tempfile.TemporaryDirectory() as p:
             t = Path(p)
