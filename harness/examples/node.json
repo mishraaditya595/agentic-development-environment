@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checks": {
+    "fast": {
+      "argv": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "timeout_seconds": 120
+    },
+    "full": {
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "--runInBand"
+      ],
+      "timeout_seconds": 600
+    }
+  }
+}

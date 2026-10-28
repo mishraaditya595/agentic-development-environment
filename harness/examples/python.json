@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "checks": {
+    "fast": {
+      "argv": [
+        "python3",
+        "-m",
+        "compileall",
+        "-q",
+        "."
+      ],
+      "timeout_seconds": 60
+    },
+    "full": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests"
+      ],
+      "timeout_seconds": 600
+    }
+  }
+}

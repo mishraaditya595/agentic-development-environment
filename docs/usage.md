@@ -49,11 +49,11 @@ Install by re-running without --dry-run. Prefer a pinned release or commit for r
 | .agentic-dev/workflows/ | Shared stage ordering and failure recovery |
 | .agentic-dev/rules/ | Reference engineering policies |
 | .agentic-dev/templates/ | Plan, PR, review and handoff document structures |
-| .agentic-dev/config.json | Canonical additive selection inventory, **not** a version-lock file |
-| AGENTS.md | Project instructions if no existing file |
+| .agentic-dev/config.json | Versioned additive selection and managed-file hash manifest |
+| AGENTS.md | New file or a tightly scoped, opt-out-capable routing block in an existing file |
 | CLAUDE.md | Claude instructions if no existing file; imports AGENTS.md |
 
-**Existing AGENTS.md and CLAUDE.md are preserved, never overwritten.** If either already exists, manually link appropriate .agentic-dev guidance into your existing instructions. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical. Non-directory parent paths, modified managed files, symlinks (including dangling instructions), and invalid inventory files cause a preflight conflict before writing. Exclusive file creation with directory descriptors closes destination and parent symlink races. Write failures trigger best-effort rollback of files and empty directories created by the current run; original files are not deleted.
+**Existing AGENTS.md receives an opt-out-capable ADE managed section; unrelated instructions and existing CLAUDE.md remain unchanged.** The managed AGENTS.md section links ADE guidance automatically unless routing is opted out. Existing Claude files may need an @AGENTS.md import. Existing generated files are reused if byte-identical. Non-directory parent paths, modified managed files, symlinks (including dangling instructions), and invalid inventory files cause a preflight conflict before writing. Exclusive file creation with directory descriptors closes destination and parent symlink races. Write failures trigger best-effort rollback of files and empty directories created by the current run; original files are not deleted.
 
 ### Adding agents and skills after installation
 
@@ -64,9 +64,9 @@ Run the same bootstrap script again using the **same pinned ADE checkout**:
     python3 scripts/bootstrap.py --target /path/to/my-project --agents codex,claude --skills test-engineer --dry-run
     python3 scripts/bootstrap.py --target /path/to/my-project --agents codex,claude --skills test-engineer
 
-The new selections are **additive**: previously installed agents and skills remain selected even when omitted on a later invocation. Only an unmodified, canonical `.agentic-dev/config.json` and an otherwise untouched set of installed managed files may be expanded. New files are created exclusively; the inventory update is atomic and happens last. Project instruction files remain user-owned. Edited, missing or outdated managed assets cause a conflict—review differences instead of deleting `config.json` to bypass protection. Removing selections and upgrading managed *content* remain manual, reviewed operations.
+The new selections are **additive**: previously installed agents and skills remain selected even when omitted on a later invocation. Only an unmodified, canonical `.agentic-dev/config.json` and an otherwise untouched set of installed managed files may be expanded. New files are created exclusively; the inventory update is atomic and happens last. Project instruction files remain user-owned. Edited or missing managed assets cause a conflict—review differences instead of deleting `config.json` to bypass protection. Removing selections and upgrading unchanged managed content is supported through the versioned manifest; modified content still needs manual reconciliation.
 
-The installer is copy-only and idempotent. It does not implement automatic package updates, uninstallation, a published CLI, a cryptographic lockfile or Windows-specific secure writes. Exit codes: 0 success, 2 preflight conflict, 1 installation/rollback failure. Incomplete rollback is reported explicitly. Do not run multiple installers against the same target concurrently; other processes can still race the inventory update.
+The installer supports versioned, hash-verified upgrades of unmodified managed files and additive installations. It does not implement automatic package updates, uninstallation, a published CLI, a cryptographic lockfile or Windows-specific secure writes. Exit codes: 0 success, 2 preflight conflict, 1 installation/rollback failure. Incomplete rollback is reported explicitly. Do not run multiple installers against the same target concurrently; other processes can still race the inventory update.
 
 For OpenCode, use the .agents/skills compatible discovery path and verify with your installed runtime. Unknown agents require a tested adapter; Markdown placed in arbitrary directories is not automatically loaded.
 
@@ -87,3 +87,11 @@ Critical gates (required tests, protected branches) belong in actual CI and perm
 If a skill is not discovered, inspect the generated path and SKILL.md frontmatter, restart the agent, and check runtime permissions. If a wrong skill is selected, explicitly name the intended one and record the misroute in routing evaluations. For install conflicts, review existing files manually; the bootstrap never overwrites them. If existing instructions ignore ADE, add references to .agentic-dev/ and confirm the runtime reads them.
 
 Individual installations made through the skills CLI may contribute to skills.sh discovery. Local Python copies do not necessarily affect that directory's ranking.
+
+## Initial harness integration
+
+The full installer adds the canonical `.agentic-dev/skill-map.json`, editable `.agentic-dev/harness.json`, and a Python check runner. It appends a checked, managed routing section to existing AGENTS.md while preserving unrelated text. Existing CLAUDE.md is unchanged. See [the harness foundation](harness-foundation.md) for configuration and commands.
+
+### Safe upgrades and routing opt-out
+
+Starting with inventory schema v2, the installer tracks SHA-256 hashes for managed files. Existing schema-v1 installs are recognized using the committed Git blob hashes from PR #1. The installer migrates only files matching their recorded historic version and refuses modified or missing managed files; no deletion is needed. Run `--dry-run` before upgrading. To retain an existing `AGENTS.md` untouched, pass `--no-agents-routing`. Managed updates preserve the file mode and reject hard-linked files rather than silently breaking links. Local `harness.json` and `invariants.json` are developer-owned configurations and survive future installs.

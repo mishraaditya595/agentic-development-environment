@@ -18,3 +18,18 @@ Document your actual architecture, build/test commands, code-generation instruct
 ## Safety and verification
 
 Preserve user changes and follow the repository's stricter existing policies. Report real check outcomes. Creating a pull request is not merging it; merging, deploying and production data changes require explicit human authorization.
+
+<!-- ADE ROUTING START v1 -->
+## ADE skill selection
+
+This repository uses the Agentic Development Environment. For each coding task,
+consult `.agentic-dev/skill-map.json` and choose the relevant **installed**
+primary skill. Supporting skills are optional; do not invoke absent skills.
+Read its SKILL.md and follow relevant project rules. Descriptions are guidance,
+not a guarantee that a model will select the correct skill automatically.
+
+Before claiming completion, run the configured ADE checks where available;
+missing, failed, or blocked checks are never passing evidence. Merging,
+deploying, force pushing and changing production data require explicit
+human authorization.
+<!-- ADE ROUTING END -->

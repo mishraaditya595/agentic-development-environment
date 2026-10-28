@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "routes": [
+    {
+      "id": "feature-development",
+      "primary": "feature-delivery",
+      "supporting": [
+        "plan-creator",
+        "plan-implementer",
+        "test-engineer",
+        "evidence-based-code-review"
+      ],
+      "triggers": [
+        "Build a new feature",
+        "Implement this feature end to end",
+        "Create the feature and prepare a PR"
+      ],
+      "exclude": [
+        "Explain this function"
+      ]
+    },
+    {
+      "id": "planning",
+      "primary": "plan-creator",
+      "supporting": [
+        "repo-onboarding"
+      ],
+      "triggers": [
+        "Plan a feature",
+        "Write an implementation plan",
+        "Design a migration without implementing"
+      ],
+      "exclude": [
+        "Implement the approved plan"
+      ]
+    },
+    {
+      "id": "implementation",
+      "primary": "plan-implementer",
+      "supporting": [
+        "test-engineer",
+        "proof-before-done"
+      ],
+      "triggers": [
+        "Implement this approved plan",
+        "Execute the planned milestone"
+      ],
+      "exclude": [
+        "Plan only, do not implement"
+      ]
+    },
+    {
+      "id": "code-review",
+      "primary": "evidence-based-code-review",
+      "supporting": [
+        "proof-before-done"
+      ],
+      "triggers": [
+        "Review my PR",
+        "Check this diff for regressions",
+        "Is this branch safe to merge"
+      ],
+      "exclude": [
+        "Fix these review comments"
+      ]
+    },
+    {
+      "id": "review-remediation",
+      "primary": "review-feedback-triage",
+      "supporting": [
+        "plan-implementer",
+        "test-engineer"
+      ],
+      "triggers": [
+        "Address code review feedback",
+        "Fix review findings"
+      ],
+      "exclude": [
+        "Review these changes without edits"
+      ]
+    },
+    {
+      "id": "bug-investigation",
+      "primary": "root-cause-investigation",
+      "supporting": [
+        "repo-onboarding"
+      ],
+      "triggers": [
+        "Investigate a production crash",
+        "Why does this endpoint fail"
+      ],
+      "exclude": [
+        "Add a new endpoint"
+      ]
+    },
+    {
+      "id": "merge-conflict",
+      "primary": "merge-conflict-resolver",
+      "supporting": [
+        "test-engineer"
+      ],
+      "triggers": [
+        "Resolve merge conflicts",
+        "Fix my rebase conflicts"
+      ],
+      "exclude": [
+        "Review the merge diff"
+      ]
+    },
+    {
+      "id": "testing",
+      "primary": "test-engineer",
+      "supporting": [
+        "behavior-first-engineering"
+      ],
+      "triggers": [
+        "Add regression tests",
+        "Improve test coverage"
+      ],
+      "exclude": [
+        "Write a manual testing guide"
+      ]
+    },
+    {
+      "id": "repository-discovery",
+      "primary": "repo-onboarding",
+      "supporting": [],
+      "triggers": [
+        "Explain the repository architecture",
+        "Find where authentication is implemented"
+      ],
+      "exclude": [
+        "Implement authentication"
+      ]
+    },
+    {
+      "id": "branch-closeout",
+      "primary": "branch-closeout",
+      "supporting": [
+        "proof-before-done"
+      ],
+      "triggers": [
+        "Check whether this branch is ready",
+        "Prepare this work for handoff"
+      ],
+      "exclude": [
+        "Merge this branch"
+      ]
+    },
+    {
+      "id": "architecture-decision",
+      "primary": "intent-to-implementation",
+      "supporting": [
+        "repo-onboarding"
+      ],
+      "triggers": [
+        "Compare architectural approaches",
+        "Clarify requirements before coding"
+      ],
+      "exclude": [
+        "Implement the selected approach"
+      ]
+    },
+    {
+      "id": "parallel-coordination",
+      "primary": "coordinated-agent-delivery",
+      "supporting": [
+        "branch-closeout"
+      ],
+      "triggers": [
+        "Split independent tasks across agents"
+      ],
+      "exclude": [
+        "Make a tiny single-file change"
+      ]
+    },
+    {
+      "id": "harness-diagnostics",
+      "primary": "harness-doctor",
+      "supporting": [],
+      "triggers": [
+        "Is ADE installed correctly?",
+        "Diagnose missing harness checks"
+      ],
+      "exclude": [
+        "Build a feature"
+      ]
+    },
+    {
+      "id": "harness-verification",
+      "primary": "harness-verify",
+      "supporting": [
+        "proof-before-done"
+      ],
+      "triggers": [
+        "Verify this implementation before reporting done",
+        "Show test evidence and check remaining acceptance criteria"
+      ],
+      "exclude": [
+        "Plan a feature without code"
+      ]
+    }
+  ]
+}
