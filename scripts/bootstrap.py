@@ -90,6 +90,8 @@ def gather(target: Path, agents: list[str], skills: list[str]) -> tuple[dict[Pat
     out[target / ".agentic-dev/bin/harness/core.py"] = (ROOT / "harness/core.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/__init__.py"] = (ROOT / "harness/__init__.py").read_bytes()
     out[target / ".agentic-dev/bin/harness/policy.py"] = (ROOT / "harness/policy.py").read_bytes()
+    out[target / ".agentic-dev/bin/ade-hook.py"] = (ROOT / "scripts/ade-hook.py").read_bytes()
+    out[target / ".agentic-dev/bin/harness/hooks.py"] = (ROOT / "harness/hooks.py").read_bytes()
     for module in ("session.py", "workspace.py", "sensors.py"):
         out[target / ".agentic-dev/bin/harness" / module] = (ROOT / "harness" / module).read_bytes()
     if not (target / ".agentic-dev/sensors.json").exists():
@@ -325,6 +327,30 @@ def _rollback(root_fd: int, target: Path, files: list[tuple[Path, int, int]],
                 continue
             failures.append(f"{path.relative_to(target)}: {exc}")
     return failures
+
+
+def install_new_assets(target, assets, *, dry_run=False):
+    """Public, create-only adapter for installing optional project configuration."""
+    create, same, conflicts, replacements, _ = preflight(target, assets, [], None, {})
+    if conflicts or replacements:
+        raise ValueError("Destination conflicts: " +
+                         ", ".join(str(p.relative_to(target)) for p in conflicts + replacements))
+    if dry_run:
+        return create, same
+    root_fd = None
+    made_files, made_dirs = [], []
+    try:
+        root_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        for path in create:
+            _write_new(root_fd, target, path, assets[path], made_files, made_dirs)
+    except OSError:
+        if root_fd is not None:
+            _rollback(root_fd, target, made_files, made_dirs, [])
+        raise
+    finally:
+        if root_fd is not None:
+            os.close(root_fd)
+    return create, same
 
 
 def main(argv: list[str] | None = None) -> int:
