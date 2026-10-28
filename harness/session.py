@@ -53,7 +53,7 @@ def read_locked(handle):
     os.lseek(handle, 0, os.SEEK_SET)
     with os.fdopen(os.dup(handle), "rb") as stream:
         content = stream.read()
-    pos = content.rfind(b"\\n") + 1
+    pos = content.rfind(b"\n") + 1
     records = []
     for num, line in enumerate(content[:pos].splitlines(), 1):
         try:
