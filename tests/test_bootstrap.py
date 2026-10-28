@@ -217,7 +217,7 @@ class BootstrapTests(unittest.TestCase):
             t = Path(p)
             self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
             path = t / "AGENTS.md"
-            path.write_text(path.read_text().replace("ADE ROUTING END", "ADE ROUTING END") + "")
+            
             # Change only the managed content, leaving the markers intact.
             path.write_text(path.read_text().replace("primary skill", "different skill"))
             old = path.read_bytes()
@@ -243,7 +243,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
             instructions = t / "AGENTS.md"
             # Simulate an older local project that has instructions but no ADE section.
-            instructions.write_text("ORIGINAL PROJECT RULE\\n")
+            instructions.write_text("ORIGINAL PROJECT RULE\n")
             before = instructions.read_bytes()
             old_config = (t / ".agentic-dev/config.json").read_bytes()
             original_replace = bootstrap.os.replace
