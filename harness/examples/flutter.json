@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checks": {
+    "fast": {
+      "argv": [
+        "flutter",
+        "analyze"
+      ],
+      "timeout_seconds": 180
+    },
+    "full": {
+      "argv": [
+        "flutter",
+        "test"
+      ],
+      "timeout_seconds": 600
+    },
+    "integration": {
+      "argv": [
+        "flutter",
+        "test",
+        "integration_test"
+      ],
+      "timeout_seconds": 900
+    }
+  }
+}
