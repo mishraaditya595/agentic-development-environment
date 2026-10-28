@@ -279,6 +279,48 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(run(t, "--preset", "standard").returncode, 0)
             self.assertEqual(json.loads(checks.read_text())["checks"]["fast"]["argv"][0], sys.executable)
 
+    def test_installed_harness_cli_executes_operations(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            result = run(t, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            runner = t / ".agentic-dev/bin/ade-harness.py"
+            ignore = t / ".agentic-dev/.gitignore"
+            self.assertEqual(ignore.read_text(), "state/\nevidence/\n")
+            def cli(*args):
+                return subprocess.run([sys.executable, str(runner), "--target", str(t), *args],
+                                      capture_output=True, text=True)
+            start = cli("session", "start", "--title", "Offline testing")
+            self.assertEqual(start.returncode, 0, start.stderr)
+            self.assertEqual(json.loads(start.stdout)["active"]["title"], "Offline testing")
+            checkpoint = cli("session", "checkpoint", "--step", "Tests")
+            self.assertEqual(checkpoint.returncode, 0, checkpoint.stderr)
+            self.assertEqual(cli("session", "status").returncode, 0)
+            self.assertEqual(cli("session", "close", "--verdict", "partial").returncode, 0)
+            self.assertEqual(cli("workspace").returncode, 2)
+            self.assertEqual(cli("sensor-proof").returncode, 1)
+
+    def test_preexisting_ignore_is_preserved(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            folder = t / ".agentic-dev"
+            folder.mkdir()
+            ignore = folder / ".gitignore"
+            ignore.write_text("local-only/\n")
+            result = run(t, "--preset", "minimal")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(ignore.read_text(), "local-only/\n")
+
+    def test_sensors_config_is_user_owned_after_install(self):
+        with tempfile.TemporaryDirectory() as p:
+            t = Path(p)
+            self.assertEqual(run(t, "--preset", "minimal").returncode, 0)
+            sensor = t / ".agentic-dev/sensors.json"
+            sensor.write_text('{"schema_version":1,"sensors":[{"id":"example"}]}')
+            changed = run(t, "--agents", "codex,claude", "--preset", "minimal")
+            self.assertEqual(changed.returncode, 0, changed.stderr)
+            self.assertIn('"example"', sensor.read_text())
+
     def test_unknown_skill_is_invalid(self):
         with tempfile.TemporaryDirectory() as p:
             result = run(Path(p), "--skills", "made-up-skill")
