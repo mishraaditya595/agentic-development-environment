@@ -4,6 +4,8 @@
 No network, package manager, or third-party dependencies. All writes are
 preflighted; existing changed files and symlinked destinations are refused.
 """
+from __future__ import annotations
+
 import argparse
 import json
 import re

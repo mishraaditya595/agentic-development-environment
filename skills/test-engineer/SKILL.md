@@ -26,3 +26,7 @@ Test matrix with expected behavior, files changed, commands and actual outcomes,
 ## Boundaries
 
 Do not fabricate pass results or skip assertions to get green. Do not make unrelated production changes unless requested or necessary and authorized. Respect network/credential boundaries and use ephemeral test data; never point destructive tests at production.
+
+## Behavioral seam and test selection
+
+Favor the inputs and observable results of a real caller, not assertions tied to a private helper or implementation detail. Apply a risk and usefulness filter: each proposed test should defend a behavior the repository commits to and a realistic failure path. Do not inflate counts with redundant mirrored cases; when one durable public-boundary test covers the same risk, prefer it. Separate automated checks from manual acceptance steps and label any not run.

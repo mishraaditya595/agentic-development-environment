@@ -185,3 +185,7 @@ For detailed guidance, read only the relevant references when their signals appl
 - `references/postgresql-review.md` only for confirmed PostgreSQL-specific behavior;
 - `references/review-lenses.md` for the complete routing matrix and cross-stack review questions;
 - `references/report-template.md` for the final report contract.
+
+## Finding challenge before final publication
+
+For actionable high-impact findings, perform the [finding challenge](references/finding-challenge.md) to test reachability and counter-evidence. Remove refuted claims only with actual evidence, and downgrade unverifiable hypotheses rather than presenting them as confirmed. Before delivering the report, check internal consistency, duplicate findings, the verdict versus blockers, and readability. Do not claim this was an independent review when performed only by the same agent.

@@ -46,3 +46,14 @@ fails. When available, also inspect the catalog with:
 ```sh
 npx skills add ./ --list
 ```
+
+## Cross-agent routing and package boundaries
+
+See [skill routing](skill-routing.md) for descriptions, positive/non-trigger evals, and the distinction between native discovery and deterministic enforcement. New standalone skills must contain their own necessary references; do not depend on shared workflows/, rules/ or templates/ in the root checkout.
+
+For changes involving installer or shared documents, also run:
+
+    python3 scripts/validate-ade.py
+    python3 -m unittest discover -s tests -v
+
+The bootstrap requires Python 3.9+ and creates no files until all destination conflicts have been checked.

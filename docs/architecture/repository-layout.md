@@ -62,3 +62,16 @@ The published form uses the same stable skill identifier:
 ```bash
 npx skills add <owner>/<repository> --skill evidence-based-code-review
 ```
+
+## ADE composition layer (October 2026)
+
+The package contract above remains canonical: standalone skills never depend on other packages or root-level shared files. The repository now additionally contains:
+
+- workflows/ — process orchestration guidance including bugfix, feature-delivery, PR review, review remediation, refactoring, release readiness.
+- rules/ — shared engineering, testing, security, Git, agent autonomy, architecture and documentation guidance.
+- templates/ — standard reports and project AGENTS.md/CLAUDE.md starters.
+- scripts/bootstrap.py — safe project-local copy installer with dry-run and conflict preflight.
+- tests/ — bootstrap integration tests and manual cross-agent skill routing probes.
+- .github/workflows/validate-ade.yml — CI validation.
+
+See [installation design](installation-design.md) for target layouts and constraints. A project-local bundle copies selected skills into supported agent paths; it does not change independently published skill contents or depend on native plugin manifests. Only the SKILL.md entrypoints are automatically discoverable by compliant agent runtimes, not the plain root workflow documents.
