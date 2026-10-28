@@ -312,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--agents", default="codex", help="Comma-separated: codex,claude,opencode")
     parser.add_argument("--preset", choices=("minimal", "standard", "complete"), default="standard")
     parser.add_argument("--skills", help="Comma-separated exact canonical skill names (overrides preset)")
+    parser.add_argument("--no-agents-routing", action="store_true", help="Leave AGENTS.md unchanged")
     parser.add_argument("--dry-run", action="store_true", help="Display actions without writing any files")
     parser.add_argument("--list", action="store_true", help="Show available skill names and exit")
     args = parser.parse_args(argv)
@@ -333,11 +334,24 @@ def main(argv: list[str] | None = None) -> int:
     if not skills or invalid_skills or any(not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", s) for s in skills):
         parser.error(f"invalid --skills: {', '.join(sorted(invalid_skills)) or '(empty or malformed)'}")
     try:
-        agents, skills, old_config = existing_config(target, agents, skills, available)
+        agents, skills, old_config, previous = existing_config(target, agents, skills, available)
         desired, notes = gather(target, agents, skills)
-        creates, same, conflicts, update, update_agents = preflight(target, desired, agents, old_config)
+        if args.no_agents_routing and (target / "AGENTS.md").is_file():
+            desired[target / "AGENTS.md"] = (target / "AGENTS.md").read_bytes()
+        for relative in (".agentic-dev/harness.json", ".agentic-dev/invariants.json"):
+            path = target / relative
+            if path.is_file() and not path.is_symlink():
+                desired[path] = path.read_bytes()
+        manifest = {str(path.relative_to(target)): content_hash(data)
+                    for path, data in desired.items()
+                    if path != target / CONFIG and path.name not in ("AGENTS.md", "CLAUDE.md")
+                    and path not in (target / ".agentic-dev/harness.json",
+                                     target / ".agentic-dev/invariants.json")}
+        desired[target / CONFIG] = config_bytes(agents, skills, manifest)
+        creates, same, conflicts, replacements, snapshots = preflight(
+            target, desired, agents, old_config, previous, args.no_agents_routing)
     except ValueError as exc:
-        print(f"CONFLICT {CONFIG}: {exc}\nNo files changed.", file=sys.stderr)
+        print(f"CONFLICT {exc}\nNo files changed.", file=sys.stderr)
         return 2
     except OSError as exc:
         print(f"PREFLIGHT FAILED: {exc}\nNo files changed.", file=sys.stderr)
@@ -351,11 +365,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     for path in creates:
         print(f"{'WOULD CREATE' if args.dry_run else 'CREATE'} {path.relative_to(target)}")
-    if update_agents:
-        print(f"{'WOULD UPDATE' if args.dry_run else 'UPDATE'} AGENTS.md (ADE managed routing section only)")
-    if update:
-        print(f"{'WOULD UPDATE' if args.dry_run else 'UPDATE'} {CONFIG} (additive selections only)")
-    print(f"Summary: {len(creates)} new, {len(same)} identical, {int(update)} config update, 0 conflicts")
+    for path in replacements:
+        print(f"{'WOULD UPDATE' if args.dry_run else 'UPDATE'} {path.relative_to(target)}")
+    print(f"Summary: {len(creates)} new, {len(same)} identical, {len(replacements)} updates, 0 conflicts")
     if args.dry_run:
         return 0
     created_files: list[tuple[Path, int, int]] = []
@@ -371,15 +383,9 @@ def main(argv: list[str] | None = None) -> int:
         root_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         for path in creates:
             _write_new(root_fd, target, path, desired[path], created_files, created_dirs)
-        if update_agents:
-            path = target / "AGENTS.md"
-            current = path.read_bytes()
-            _replace_existing(root_fd, target, path, desired[path], current,
+        for path in sorted(replacements, key=lambda item: item == target / CONFIG):
+            _replace_existing(root_fd, target, path, desired[path], snapshots[path],
                               created_files, created_dirs, updated_files)
-        if update:
-            assert old_config is not None
-            _replace_existing(root_fd, target, target / CONFIG, desired[target / CONFIG],
-                              old_config, created_files, created_dirs, updated_files)
     except OSError as exc:
         failures = _rollback(root_fd, target, created_files, created_dirs, updated_files) if root_fd is not None else []
         print(f"INSTALL FAILED: {exc}", file=sys.stderr)
